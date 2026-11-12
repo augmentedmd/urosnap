@@ -300,3 +300,26 @@ def test_storage_browse_and_set(client, tmp_path):
     created = client.post("/api/sessions", json={})
     assert created.status_code == 200
     assert str(target) in created.json()["storage_path"]
+
+
+def test_stale_recording_sessions_reconciled(client):
+    from app.database import SessionLocal
+    from app.models.entities import ProcedureSession, SessionStatus
+
+    res = client.post("/api/sessions", json=_session_payload())
+    assert res.status_code == 200
+    sid = res.json()["public_id"]
+
+    # Simulate a crashed recording left in the DB.
+    db = SessionLocal()
+    try:
+        row = db.query(ProcedureSession).filter(ProcedureSession.public_id == sid).one()
+        row.status = SessionStatus.recording
+        db.commit()
+    finally:
+        db.close()
+
+    listed = client.get("/api/sessions")
+    assert listed.status_code == 200
+    match = next(s for s in listed.json() if s["public_id"] == sid)
+    assert match["status"] == "interrupted"
