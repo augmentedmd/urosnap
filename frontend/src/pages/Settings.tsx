@@ -34,6 +34,8 @@ export function SettingsPage() {
   const [form, setForm] = useState<SettingsType>(empty)
   const [serviceUrlInput, setServiceUrlInput] = useState('')
   const [uiBaseInput, setUiBaseInput] = useState('')
+  const [probeMessage, setProbeMessage] = useState<string | null>(null)
+  const [probeOk, setProbeOk] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (settings.data) setForm(settings.data)
@@ -48,6 +50,26 @@ export function SettingsPage() {
     mutationFn: () => api.updateSettings(form),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   })
+
+  const probeConnection = async () => {
+    const base = (serviceUrlInput || 'http://127.0.0.1:8000').replace(/\/+$/, '')
+    setProbeMessage('Testing…')
+    setProbeOk(null)
+    try {
+      const res = await fetch(`${base}/api/health`, {
+        headers: { 'X-Desktop-Token': 'local-desktop-dev-token' },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const body = (await res.json()) as { service?: string; status?: string }
+      setProbeOk(true)
+      setProbeMessage(`Connected to ${body.service ?? 'OpenSnap'} (${body.status ?? 'ok'}) at ${base}`)
+    } catch (err) {
+      setProbeOk(false)
+      setProbeMessage(
+        `Could not reach ${base}. Start uvicorn on the Windows PC, allow local network access if the browser prompts, and confirm the URL. ${(err as Error).message}`,
+      )
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -79,7 +101,23 @@ export function SettingsPage() {
               onChange={(e) => setUiBaseInput(e.target.value)}
             />
           </Field>
-          <div className="flex justify-end">
+          {probeMessage ? (
+            <div
+              className={
+                probeOk
+                  ? 'rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900'
+                  : probeOk === false
+                    ? 'rounded-md bg-red-50 px-3 py-2 text-sm text-red-900'
+                    : 'rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700'
+              }
+            >
+              {probeMessage}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => void probeConnection()}>
+              Test connection
+            </Button>
             <Button
               type="button"
               variant="secondary"

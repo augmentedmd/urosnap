@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.database import SessionLocal, engine
 from app.models import entities as _entities  # noqa: F401
 from app.database import Base
+from app.middleware_pna import PrivateNetworkAccessMiddleware
 from app.services.sessions import get_session_service
 from app.services.video.pipeline import get_video_pipeline
 
@@ -60,7 +61,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+# Outer middleware so PNA headers are added to CORS preflight responses too.
+app.add_middleware(PrivateNetworkAccessMiddleware)
 
 app.include_router(routes_health.router)
 app.include_router(routes_capture.router)
