@@ -29,20 +29,29 @@ OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets whil
 
 ## Deploy the UI shell
 
-Workers Builds for this repo expects the Worker name **`urosnap`** and a root-level build:
+Workers Builds for this repo expects the Worker name **`urosnap`** and a root-level Wrangler config.
+
+Preview branches run `npx wrangler preview`, so `wrangler.jsonc` includes an empty `previews` block. Root `npm ci`/`npm install` runs `prepare`, which builds `frontend/dist` before preview/deploy (Workers Builds currently leaves the dashboard Build command empty).
 
 ```bash
 # From repo root (matches Cloudflare Workers Builds defaults)
 npm install
-npm run deploy
+npm run deploy          # production
+npm run preview         # Worker Preview
 ```
 
 Manual / local packaging:
 
 ```bash
 cd frontend && npm install && npm run build
-cd .. && npx wrangler deploy --dry-run
+cd .. && npx wrangler preview
 ```
+
+Optional dashboard settings (Workers → Settings → Builds):
+
+- **Build command:** `npm run build` (redundant with `prepare`, but clearer)
+- **Deploy command (production):** `npx wrangler deploy`
+- **Preview command:** `npx wrangler preview`
 
 The `cloudflare/` folder holds the Worker script; root `wrangler.jsonc` + `package.json` are the CI entrypoints.
 

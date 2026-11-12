@@ -5,6 +5,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-12",
   "upload_source_maps": true,
+  "preview_urls": true,
+  "previews": {},
   "observability": {
     "enabled": true,
     "traces": {
