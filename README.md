@@ -20,32 +20,35 @@ All clinical data stays on the Windows recording computer. No cloud services are
 
 You may host the **static UI only** on Cloudflare Workers. Processing still runs entirely on the local service — Cloudflare never sees PHI, video, photos, or PDFs. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
 
+## Quick start (physicians)
+
+**Download `OpenSnap-windows.zip`, extract, double-click `OpenSnap.exe`.**
+
+The app starts the local recorder and opens the browser. No Git, Python, or Cloudflare setup. Details: [docs/WINDOWS_EXE.md](docs/WINDOWS_EXE.md).
+
 ## Quick start (development)
 
 ### Prerequisites
 
 - Python 3.12+
 - Node.js 20+
-- FFmpeg on `PATH`
+- FFmpeg on `PATH` (recommended for MP4)
 - (Optional) USB webcam or HDMI-to-USB capture device
 
-### Backend
+### Desktop-style local run
 
 ```bash
-cd backend
+cd frontend && npm install && npm run build
+cd ../backend
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m app.desktop
 ```
 
-### Frontend (dev)
+This mirrors the EXE: API + UI on http://127.0.0.1:8000 and opens the browser.
+
+### Frontend (Vite hot reload)
 
 ```bash
 cd frontend
@@ -53,19 +56,7 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL (typically http://localhost:5173). The frontend proxies API calls to the local service.
-
-### Combined (production-style local)
-
-Build the frontend and let FastAPI serve it:
-
-```bash
-cd frontend && npm install && npm run build
-cd ../backend && source .venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-Then open http://localhost:8000
+Open the Vite URL (typically http://localhost:5173). The frontend proxies API calls to the local service (start `python -m app.desktop --no-browser` in another terminal).
 
 ### Simulated video
 

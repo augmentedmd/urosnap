@@ -15,9 +15,8 @@ type Props = {
 }
 
 /**
- * When the SPA is served from Cloudflare (or any remote origin), the browser
- * must reach the Windows recorder directly. Block the clinical UI until that
- * local link works — otherwise every screen looks broken (no feed, empty data).
+ * Cloudflare UI shell cannot record by itself. Prefer OpenSnap.exe on the PC.
+ * Advanced users may still point this remote UI at a running local service.
  */
 export function ConnectionGate({ children }: Props) {
   const location = useLocation()
@@ -71,45 +70,28 @@ export function ConnectionGate({ children }: Props) {
           <AlertTriangle className="mt-0.5 h-6 w-6 text-amber-700" />
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-amber-950">
-              Connect the local recording service
+              Use OpenSnap on the Windows PC
             </h1>
             <p className="mt-2 text-sm text-amber-950/90">
-              This page is only the OpenSnap UI shell (Cloudflare). Video, camera preview, patient
-              data, and PDFs stay on the Windows workstation at{' '}
-              <code className="rounded bg-amber-100 px-1">{serviceUrlInput || 'http://127.0.0.1:8000'}</code>.
-              The camera feed cannot appear until that local service is reachable from this browser.
+              This Cloudflare page is only a UI shell. For day-to-day use, download{' '}
+              <strong>OpenSnap.exe</strong>, double-click it on the workstation, and work in the
+              browser window it opens — no Git, Python, or manual server setup.
             </p>
           </div>
         </div>
 
         <ol className="list-decimal space-y-2 pl-5 text-sm text-amber-950">
           <li>
-            On the Windows PC, start the recorder:
-            <pre className="mt-1 overflow-x-auto rounded bg-amber-100/90 p-2 text-xs text-amber-950">
-              {`cd backend
-.\\.venv\\Scripts\\Activate.ps1
-uvicorn app.main:app --host 0.0.0.0 --port 8000`}
-            </pre>
+            On the Windows PC, run <strong>OpenSnap.exe</strong> (from the GitHub Release zip). It
+            starts the local recorder and opens the app at http://127.0.0.1:8000.
           </li>
           <li>
-            Verify{' '}
-            <a
-              className="font-semibold underline"
-              href={`${(serviceUrlInput || 'http://127.0.0.1:8000').replace(/\/+$/, '')}/api/health`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              /api/health
-            </a>{' '}
-            opens on that PC.
+            Prefer that local window for recording. Camera preview and patient data never go through
+            Cloudflare.
           </li>
-          <li>When Chrome/Edge asks to allow local network access for this site, choose Allow.</li>
           <li>
-            Prefer clinical use on the workstation itself:{' '}
-            <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
-              http://127.0.0.1:8000
-            </a>{' '}
-            (same-origin UI + API — preview always works).
+            Advanced: if you still want this remote UI to talk to a running EXE, enter the service URL
+            below, allow local-network access when the browser prompts, then Test connection.
           </li>
         </ol>
 
