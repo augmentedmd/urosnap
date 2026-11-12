@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, HardDrive, Plus, Video } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getServiceBaseUrl, isSameOriginService } from '@/lib/runtime'
-import { formatBytes } from '@/lib/utils'
+import { formatBytes, formatDate } from '@/lib/utils'
+import { DeleteSessionButton } from '@/components/DeleteSessionButton'
 import { Badge, Button, Card, PageHeader, StatusDot } from '@/components/ui'
 
 export function Dashboard() {
@@ -148,7 +149,7 @@ export function Dashboard() {
                 <tr key={s.public_id} className="border-t border-[var(--color-line)]">
                   <td className="px-4 py-3">{s.patient_name}</td>
                   <td className="px-4 py-3">{s.display_procedure_name}</td>
-                  <td className="px-4 py-3">{s.procedure_date}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{formatDate(s.procedure_date)}</td>
                   <td className="px-4 py-3">
                     <Badge
                       tone={
@@ -165,12 +166,15 @@ export function Dashboard() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link to={`/sessions/${s.public_id}/record`}>
-                      <Button variant="outline" size="sm">
-                        <Video className="h-4 w-4" />
-                        Open
-                      </Button>
-                    </Link>
+                    <div className="flex justify-end gap-1">
+                      <Link to={`/sessions/${s.public_id}/record`}>
+                        <Button variant="outline" size="sm">
+                          <Video className="h-4 w-4" />
+                          Open
+                        </Button>
+                      </Link>
+                      <DeleteSessionButton session={s} />
+                    </div>
                   </td>
                 </tr>
               ))}

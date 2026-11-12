@@ -26,6 +26,31 @@ export function formatDuration(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+/** "November 12, 2026". Date-only ISO strings are read as calendar dates, not UTC midnight. */
+export function formatDate(value?: string | null): string {
+  if (!value) return '—'
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (m) return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+}
+
 export function uid(prefix = 'cmd'): string {
   // crypto.randomUUID only exists in secure contexts; the phone remote is served
   // over plain http on the LAN IP, where only getRandomValues is available.

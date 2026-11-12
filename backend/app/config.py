@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     database_name: str = "opensnap.db"
 
     # Practice letterhead defaults (verify before clinical use)
-    practice_name: str = "Mount Sinai Doctors – Long Island"
+    practice_name: str = "Mount Sinai Doctors"
     practice_address_line1: str = "5 Cuba Hill Road"
     practice_address_line2: str = "Greenlawn, NY 11740"
     practice_phone: str = "(631) 628-5000"

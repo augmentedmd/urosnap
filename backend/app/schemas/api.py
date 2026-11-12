@@ -191,7 +191,7 @@ class ReportCreate(BaseModel):
     notes: Optional[str] = None
     images_per_page: Optional[int] = None
     include_captions: bool = True
-    include_timestamps: bool = True
+    include_timestamps: bool = False
 
 
 class ReportOut(BaseModel):

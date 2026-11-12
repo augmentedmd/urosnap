@@ -7,11 +7,13 @@ No Cloudflare, no git clone, no manual uvicorn for end users.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import socket
 import sys
 import threading
 import time
+import urllib.request
 import webbrowser
 
 import uvicorn
@@ -38,8 +40,30 @@ def _wait_then_open(url: str, host: str, port: int, timeout: float = 30.0) -> No
     webbrowser.open(url)
 
 
+def _redirect_output_if_windowed(log_dir) -> None:
+    """The EXE is built without a console, so stdout/stderr are None; uvicorn needs real streams."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = open(log_dir / "opensnap.log", "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+    if sys.stdout is None:
+        sys.stdout = log_file
+    if sys.stderr is None:
+        sys.stderr = log_file
+
+
+def _running_opensnap(port: int) -> bool:
+    """True when another OpenSnap is already serving this port (e.g. the EXE was double-clicked twice)."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as res:
+            return json.load(res).get("service") == get_settings().app_name
+    except Exception:
+        return False
+
+
 def run(host: str | None = None, port: int | None = None, open_browser: bool = True) -> None:
     settings = get_settings()
+    _redirect_output_if_windowed(settings.data_dir / "logs")
     # Listen on the LAN so the iPhone remote can connect. LanRemoteOnlyMiddleware
     # limits other devices to the PHI-free remote endpoints.
     host = host or "0.0.0.0"
@@ -50,6 +74,12 @@ def run(host: str | None = None, port: int | None = None, open_browser: bool = T
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    if _running_opensnap(port):
+        logger.info("OpenSnap is already running on %s; opening it", url)
+        if open_browser:
+            webbrowser.open(url)
+        return
+
     logger.info("Starting OpenSnap on %s (data: %s)", url, settings.data_dir)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -61,8 +91,27 @@ def run(host: str | None = None, port: int | None = None, open_browser: bool = T
             daemon=True,
         ).start()
 
-    # Prefer 127.0.0.1 in the browser even if uvicorn listens on all interfaces.
-    uvicorn.run(app, host=host, port=port, log_level="info", factory=False)
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info"))
+    app.state.uvicorn_server = server
+    try:
+        server.run()
+    except SystemExit:
+        # uvicorn calls sys.exit(1) when it cannot bind instead of raising.
+        if not server.started:
+            raise OSError(f"Port {port} is already in use by another program.") from None
+        raise
+
+
+def _show_error(message: str) -> None:
+    """With no console window, a dialog is the only way the user sees a startup failure."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, message, "OpenSnap", 0x10)
+    except Exception:
+        pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except OSError as exc:
         logger.error("Failed to start OpenSnap: %s", exc)
+        _show_error(f"OpenSnap could not start:\n\n{exc}")
         return 1
     return 0
 
