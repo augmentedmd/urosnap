@@ -73,6 +73,7 @@ class VideoPipeline:
         self._frame_times: deque[float] = deque(maxlen=60)
         self._record_frame_times: deque[float] = deque(maxlen=60)
         self._synthetic_t0 = time.monotonic()
+        self._thread_started_at: float = 0.0
 
     def set_snapshot_callback(self, callback: SnapshotCallback) -> None:
         self._snapshot_callback = callback
@@ -93,6 +94,15 @@ class VideoPipeline:
                 self._config.video_dir = config.video_dir or self._config.video_dir
                 self._config.snapshots_dir = config.snapshots_dir or self._config.snapshots_dir
                 self._config.thumbnails_dir = config.thumbnails_dir or self._config.thumbnails_dir
+                # Thread can be "alive" but stuck inside OpenCV — restart if starved.
+                last = self._state.last_frame_ts
+                now = time.monotonic()
+                age = now - self._thread_started_at if self._thread_started_at else 0.0
+                starved = (last is not None and now - last > 2.5) or (
+                    last is None and age > 2.5
+                )
+                if starved and not self._state.recording:
+                    self._restart_acquisition_unlocked()
                 return
 
             self._config = config
@@ -167,6 +177,36 @@ class VideoPipeline:
     def get_latest_jpeg(self) -> Optional[bytes]:
         with self._lock:
             return self._latest_jpeg
+
+    def ensure_preview_jpeg(self) -> bytes:
+        """Always return a displayable JPEG.
+
+        If the acquisition thread has not published yet (or is stuck), generate a
+        synthetic frame on this thread so the UI never sits on a static placeholder.
+        """
+        with self._lock:
+            if self._latest_jpeg is not None:
+                return self._latest_jpeg
+            if not self._thread or not self._thread.is_alive():
+                self._start_acquisition_unlocked()
+            width, height = parse_resolution(self._config.resolution or "640x480")
+            frame = self._synthetic_frame(width, height)
+            ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+            if ok:
+                self._latest_frame = frame
+                self._latest_jpeg = jpeg.tobytes()
+                self._state.connected = True
+                self._state.last_frame_ts = time.monotonic()
+                self._frame_times.append(time.monotonic())
+                if not self._state.warning:
+                    self._state.warning = "Warming up capture (synthetic preview)"
+                self._preview_condition.notify_all()
+                return self._latest_jpeg
+        # Extremely defensive fallback — tiny gray JPEG
+        blank = np.zeros((240, 320, 3), dtype=np.uint8)
+        blank[:] = (40, 40, 40)
+        ok, jpeg = cv2.imencode(".jpg", blank)
+        return jpeg.tobytes() if ok else b""
 
     def wait_for_jpeg(self, timeout: float = 1.0) -> Optional[bytes]:
         with self._preview_condition:
@@ -252,6 +292,7 @@ class VideoPipeline:
 
     def _start_acquisition_unlocked(self) -> None:
         self._stop_event.clear()
+        self._thread_started_at = time.monotonic()
         self._thread = threading.Thread(target=self._run_loop, name="video-pipeline", daemon=True)
         self._thread.start()
 

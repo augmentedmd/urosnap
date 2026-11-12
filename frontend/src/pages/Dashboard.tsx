@@ -40,6 +40,7 @@ export function Dashboard() {
           <div className="mt-3">
             <StatusDot active={!!h && h.status === 'ok'} label={h?.service ?? 'Checking…'} />
           </div>
+          <div className="mt-2 text-xs text-[var(--color-muted)]">Build {h?.version ?? '…'}</div>
         </Card>
         <Card className="p-5">
           <div className="text-sm text-[var(--color-muted)]">Capture device</div>
