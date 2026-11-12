@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { formatDate } from '@/lib/utils'
 import { Button, Card, Field, PageHeader, Select, Textarea } from '@/components/ui'
 import { FileText } from 'lucide-react'
 
@@ -49,7 +50,7 @@ export function ReportPage() {
         notes,
         images_per_page: imagesPerPage,
         include_captions: true,
-        include_timestamps: true,
+        include_timestamps: false,
       }),
     onSuccess: (report) => {
       qc.invalidateQueries({ queryKey: ['reports', sessionId] })
@@ -62,7 +63,7 @@ export function ReportPage() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Report Generator"
-        subtitle="Simple PDF: letterhead, demographics, procedure details, Notes, and selected photographs."
+        subtitle="Mount Sinai branded PDF: letterhead, demographics, Notes, and selected photographs."
         actions={
           <Link to={`/sessions/${sessionId}/gallery`}>
             <Button variant="outline">Gallery</Button>
@@ -88,8 +89,8 @@ export function ReportPage() {
                 <dd className="font-semibold">{session.data.display_procedure_name}</dd>
               </div>
               <div>
-                <dt className="text-[var(--color-muted)]">Physician</dt>
-                <dd className="font-semibold">{session.data.physician}</dd>
+                <dt className="text-[var(--color-muted)]">Procedure date</dt>
+                <dd className="font-semibold">{formatDate(session.data.procedure_date)}</dd>
               </div>
             </dl>
           ) : null}
@@ -173,7 +174,7 @@ export function ReportPage() {
                 className="flex items-center justify-between rounded-lg border border-[var(--color-line)] px-3 py-2"
               >
                 <span>
-                  Version {r.version} · {new Date(r.created_at).toLocaleString()} · {r.images_per_page}/page
+                  Version {r.version} · {formatDate(r.created_at)} · {r.images_per_page}/page
                 </span>
                 <a href={r.download_url} target="_blank" rel="noreferrer" className="font-semibold text-[var(--color-brand)]">
                   Download

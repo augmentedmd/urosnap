@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -259,6 +260,42 @@ class SessionService:
         db.refresh(session)
         return session
 
+    def delete_session(
+        self, db: Session, session: ProcedureSession, delete_files: bool = False
+    ) -> tuple[bool, str]:
+        metrics = self.pipeline.recording_metrics()
+        if metrics.get("session_public_id") == session.public_id and metrics.get("state") == "recording":
+            return False, "Stop the recording before deleting this procedure."
+
+        public_id = session.public_id
+        storage_path = Path(session.storage_path) if session.storage_path else None
+        patient = session.patient
+        db.delete(session)
+        db.flush()
+        # Patients only exist to hold demographics for their procedures.
+        if patient is not None and not patient.sessions:
+            db.delete(patient)
+
+        files_deleted = False
+        if delete_files and storage_path is not None and storage_path.is_dir():
+            # Only remove the per-session folder OpenSnap created, never a user-chosen parent.
+            if storage_path.name.startswith("session_") and storage_path.name.endswith(f"_{public_id}"):
+                shutil.rmtree(storage_path, ignore_errors=True)
+                files_deleted = not storage_path.exists()
+
+        db.add(
+            AuditLog(
+                action="session_deleted",
+                actor="desktop",
+                session_public_id=public_id,
+                detail=f"files_deleted={files_deleted}",
+            )
+        )
+        db.commit()
+        if delete_files and not files_deleted:
+            return True, "Procedure deleted. Its files could not be removed from disk."
+        return True, "Procedure and files deleted." if files_deleted else "Procedure deleted."
+
     def attach_session_for_review(self, session: ProcedureSession) -> None:
         """Re-bind pipeline directories for an existing session without starting capture if idle."""
         path = Path(session.storage_path)
@@ -381,7 +418,7 @@ class SessionService:
         notes: Optional[str],
         images_per_page: Optional[int],
         include_captions: bool = True,
-        include_timestamps: bool = True,
+        include_timestamps: bool = False,
         practice_overrides: Optional[dict] = None,
     ) -> tuple[Report, Optional[str]]:
         if notes is not None:

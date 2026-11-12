@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { Badge, Button, Card, Input, PageHeader, Select } from '@/components/ui'
+import { DeleteSessionButton } from '@/components/DeleteSessionButton'
+import { formatDate } from '@/lib/utils'
 
 export function Sessions() {
   const [q, setQ] = useState('')
@@ -27,7 +29,7 @@ export function Sessions() {
     <div>
       <PageHeader
         title="Previous Sessions"
-        subtitle="Search, reopen, review media, edit Notes, and regenerate versioned PDFs."
+        subtitle="Search, reopen, review media, edit Notes, regenerate versioned PDFs, or delete procedures."
       />
 
       <Card className="mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -66,7 +68,7 @@ export function Sessions() {
                 </td>
                 <td className="px-4 py-3">{s.display_procedure_name}</td>
                 <td className="px-4 py-3">{s.physician}</td>
-                <td className="px-4 py-3">{s.procedure_date}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{formatDate(s.procedure_date)}</td>
                 <td className="px-4 py-3">
                   <Badge>{s.status}</Badge>
                 </td>
@@ -86,6 +88,7 @@ export function Sessions() {
                     <Link to={`/sessions/${s.public_id}/report`}>
                       <Button size="sm">Report</Button>
                     </Link>
+                    <DeleteSessionButton session={s} />
                   </div>
                 </td>
               </tr>

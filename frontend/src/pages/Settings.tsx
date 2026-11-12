@@ -175,6 +175,7 @@ export function SettingsPage() {
           <Field label="Telephone">
             <Input value={form.practice_phone} onChange={(e) => setForm({ ...form, practice_phone: e.target.value })} />
           </Field>
+          <ReportLogoField />
         </Card>
 
         <Card className="space-y-4 p-5">
@@ -370,5 +371,56 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function ReportLogoField() {
+  const qc = useQueryClient()
+  const info = useQuery({ queryKey: ['report-logo'], queryFn: api.reportLogoInfo })
+  const [version, setVersion] = useState(0)
+  const refresh = () => {
+    setVersion((v) => v + 1)
+    qc.invalidateQueries({ queryKey: ['report-logo'] })
+  }
+  const upload = useMutation({ mutationFn: (file: File) => api.uploadReportLogo(file), onSuccess: refresh })
+  const reset = useMutation({ mutationFn: api.resetReportLogo, onSuccess: refresh })
+  const error = (upload.error || reset.error) as Error | null
+
+  return (
+    <Field
+      label="Report logo"
+      hint="Printed at the top left of every PDF report. PNG with a transparent background works best."
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-[var(--color-line)] bg-white p-2">
+          <img key={version} src={api.reportLogoUrl()} alt="Report logo" className="max-h-full max-w-full" />
+        </div>
+        <div className="space-y-2">
+          <label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[var(--color-line)] bg-white px-3 text-sm font-semibold hover:bg-slate-50">
+            {upload.isPending ? 'Uploading…' : 'Upload logo'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) upload.mutate(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+          {info.data?.custom ? (
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => reset.mutate()} disabled={reset.isPending}>
+                Use default Mount Sinai Doctors logo
+              </Button>
+            </div>
+          ) : (
+            <div className="text-xs text-[var(--color-muted)]">Using the default Mount Sinai Doctors logo.</div>
+          )}
+          {error ? <div className="text-xs text-red-700">{error.message}</div> : null}
+        </div>
+      </div>
+    </Field>
   )
 }

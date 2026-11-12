@@ -167,6 +167,19 @@ def patch_session(
     return _detail(session)
 
 
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    delete_files: bool = False,
+    session: ProcedureSession = Depends(load_session),
+    db: Session = Depends(get_db),
+    sessions: SessionService = Depends(get_sessions),
+) -> dict:
+    ok, message = sessions.delete_session(db, session, delete_files=delete_files)
+    if not ok:
+        raise HTTPException(status_code=409, detail=message)
+    return {"deleted": True, "message": message}
+
+
 @router.post("/sessions/{session_id}/recording/start", response_model=RecordingStatus)
 def start_recording(
     session: ProcedureSession = Depends(load_session),

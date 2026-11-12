@@ -171,7 +171,7 @@ function mapReport(report: Report): Report {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
-  if (!headers.has('Content-Type') && init?.body) {
+  if (!headers.has('Content-Type') && init?.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
   }
   headers.set('X-Desktop-Token', 'local-desktop-dev-token')
@@ -213,6 +213,20 @@ export const api = {
     request<SessionDetail>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),
   updateSession: (id: string, body: unknown) =>
     request<SessionDetail>(`/api/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteSession: (id: string, deleteFiles: boolean) =>
+    request<{ deleted: boolean; message: string }>(
+      `/api/sessions/${id}?delete_files=${deleteFiles ? 'true' : 'false'}`,
+      { method: 'DELETE' },
+    ),
+  reportLogoUrl: () => serviceUrl(`/api/settings/report-logo?t=${Date.now()}`),
+  reportLogoInfo: () => request<{ custom: boolean }>('/api/settings/report-logo/info'),
+  uploadReportLogo: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<{ custom: boolean }>('/api/settings/report-logo', { method: 'POST', body: form })
+  },
+  resetReportLogo: () =>
+    request<{ custom: boolean }>('/api/settings/report-logo', { method: 'DELETE' }),
   startRecording: (id: string) =>
     request<RecordingStatus>(`/api/sessions/${id}/recording/start`, { method: 'POST' }),
   stopRecording: (id: string) =>

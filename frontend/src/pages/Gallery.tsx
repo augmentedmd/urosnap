@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { api, type Snapshot } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { Badge, Button, Card, Input, PageHeader } from '@/components/ui'
 import { ArrowDown, ArrowUp, Check, FileText } from 'lucide-react'
 
@@ -154,7 +154,7 @@ export function Gallery() {
                 ) : null}
               </div>
               <div className="text-[11px] text-[var(--color-muted)]">
-                {new Date(snap.capture_timestamp).toLocaleString()}
+                {formatDate(snap.capture_timestamp)} · {new Date(snap.capture_timestamp).toLocaleTimeString()}
               </div>
             </div>
           </button>
