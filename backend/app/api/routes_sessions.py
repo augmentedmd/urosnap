@@ -334,10 +334,8 @@ def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
 
     # Idempotent bind — configure() no longer restarts when already attached.
     get_session_service().attach_session_for_review(session)
-    # Never block the API worker waiting for frames — that starved Start/Stop.
-    frame = pipeline.get_latest_jpeg()
-    if frame is None:
-        frame = _placeholder_jpeg()
+    # Never block waiting; always return a real moving frame (synthetic if needed).
+    frame = pipeline.ensure_preview_jpeg() or _placeholder_jpeg()
     return Response(
         content=frame,
         media_type="image/jpeg",

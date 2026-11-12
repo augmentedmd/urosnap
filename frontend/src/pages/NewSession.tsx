@@ -51,14 +51,10 @@ export function NewSession() {
     setForm((f) => {
       const preferredId = settings.data?.preferred_capture_device_id || ''
       const preferred = devices.data?.find((d) => d.id === preferredId && d.available)
-      const firstCamera = devices.data?.find((d) => d.source_type === 'camera' && d.available)
-      // Prefer saved preference, else first real camera, else synthetic.
-      // User can always switch to a camera in the dropdown once Windows exposes it.
-      const chosen =
-        preferred ||
-        firstCamera ||
-        devices.data?.find((d) => d.id === 'synthetic') ||
-        devices.data?.[0]
+      // Default to synthetic so preview/record always works. Cameras are optional —
+      // auto-selecting a flaky DirectShow device was hanging the capture loop.
+      const synthetic = devices.data?.find((d) => d.id === 'synthetic')
+      const chosen = preferred || synthetic || devices.data?.[0]
 
       return {
         ...f,
