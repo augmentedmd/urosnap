@@ -18,8 +18,6 @@ import uvicorn
 
 from app.config import get_settings
 from app.main import app
-from app.paths import is_frozen
-
 logger = logging.getLogger("opensnap.desktop")
 
 
@@ -42,11 +40,9 @@ def _wait_then_open(url: str, host: str, port: int, timeout: float = 30.0) -> No
 
 def run(host: str | None = None, port: int | None = None, open_browser: bool = True) -> None:
     settings = get_settings()
-    host = host or settings.host or "127.0.0.1"
-    # Desktop EXE binds loopback by default so the machine isn't exposed on the LAN
-    # unless the physician explicitly chooses 0.0.0.0 for iPhone remote.
-    if is_frozen() and host == "0.0.0.0":
-        host = "127.0.0.1"
+    # Listen on the LAN so the iPhone remote can connect. LanRemoteOnlyMiddleware
+    # limits other devices to the PHI-free remote endpoints.
+    host = host or "0.0.0.0"
     port = int(port or settings.port or 8000)
     url = f"http://127.0.0.1:{port}"
 
@@ -79,12 +75,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Do not open the default browser automatically",
     )
     parser.add_argument(
-        "--lan",
+        "--local-only",
         action="store_true",
-        help="Bind 0.0.0.0 so an iPhone on the LAN can reach the service",
+        help="Bind 127.0.0.1 only (disables the iPhone remote)",
     )
     args = parser.parse_args(argv)
-    host = "0.0.0.0" if args.lan else args.host
+    host = "127.0.0.1" if args.local_only else args.host
     try:
         run(host=host, port=args.port, open_browser=not args.no_browser)
     except KeyboardInterrupt:

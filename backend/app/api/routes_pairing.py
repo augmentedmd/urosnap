@@ -10,6 +10,7 @@ from app.api.deps import (
     require_desktop_auth,
     require_remote_pairing,
 )
+from app.config import get_settings
 from app.database import get_db
 from app.models.entities import PairingSession, ProcedureSession
 from app.schemas.api import (
@@ -21,6 +22,7 @@ from app.schemas.api import (
     RemoteCommand,
     RemoteCommandResult,
 )
+from app.services.network import to_lan_base
 from app.services.pairing import PairingService
 from app.services.sessions import SessionService
 from app.services.video.pipeline import get_video_pipeline
@@ -67,8 +69,10 @@ def create_pairing(
     # Mobile cannot use localhost — use host as provided by the desktop browser
     local_base = f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
     # UI may be on Cloudflare; clinical commands always target the local/LAN service.
-    ui_base = (payload.ui_base_url or local_base).rstrip("/")
-    service_base = (payload.service_base_url or local_base).rstrip("/")
+    port = request.url.port or get_settings().port
+    # A phone resolves 127.0.0.1 to itself, so loopback bases become this PC's LAN IP.
+    ui_base = to_lan_base(payload.ui_base_url or local_base, port)
+    service_base = to_lan_base(payload.service_base_url or local_base, port)
     _row, token, _ = pairing.create_pairing(db, session, base_url=ui_base)
     url = pairing.build_remote_url(ui_base, token, service_base_url=service_base)
     return PairingCreateOut(
