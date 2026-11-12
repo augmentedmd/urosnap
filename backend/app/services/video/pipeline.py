@@ -80,13 +80,31 @@ class VideoPipeline:
     def configure(self, config: PipelineConfig) -> None:
         with self._lock:
             was_running = self._thread is not None and self._thread.is_alive()
+            same_bind = (
+                was_running
+                and self._config.session_public_id == config.session_public_id
+                and self._config.source_type == config.source_type
+                and self._config.device_id == config.device_id
+                and self._config.resolution == config.resolution
+            )
+            # Preview polls call configure repeatedly — never thrash the capture thread.
+            if same_bind:
+                self._config.snapshot_interval_sec = config.snapshot_interval_sec
+                self._config.video_dir = config.video_dir or self._config.video_dir
+                self._config.snapshots_dir = config.snapshots_dir or self._config.snapshots_dir
+                self._config.thumbnails_dir = config.thumbnails_dir or self._config.thumbnails_dir
+                return
+
             self._config = config
             if was_running:
-                # Restart acquisition with new source if not recording
                 if not self._state.recording:
                     self._restart_acquisition_unlocked()
             else:
                 self._start_acquisition_unlocked()
+
+    def is_acquiring(self) -> bool:
+        with self._lock:
+            return self._thread is not None and self._thread.is_alive()
 
     def update_snapshot_interval(self, interval_sec: float) -> None:
         with self._lock:
