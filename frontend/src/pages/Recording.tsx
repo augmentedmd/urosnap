@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Camera, Images, Square, Circle } from 'lucide-react'
 import { api } from '@/lib/api'
-import { serviceUrl } from '@/lib/runtime'
 import { formatDuration } from '@/lib/utils'
+import { LivePreview } from '@/components/LivePreview'
 import { Badge, Button, Card, PageHeader, Select, StatusDot } from '@/components/ui'
 
 const INTERVALS = [1, 2, 3, 5, 10, 15, 30, 60]
@@ -93,11 +93,7 @@ export function Recording() {
       <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
         <Card className="overflow-hidden animate-fade-up">
           <div className="relative aspect-video bg-slate-900">
-            <img
-              src={serviceUrl(`/api/sessions/${sessionId}/preview.mjpg`)}
-              alt="Live endoscopy preview"
-              className="h-full w-full object-contain"
-            />
+            <LivePreview sessionId={sessionId} />
             {recording ? (
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white">
                 <span className="rec-dot h-2.5 w-2.5 rounded-full bg-white" />

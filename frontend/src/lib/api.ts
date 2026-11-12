@@ -4,8 +4,17 @@ export type Patient = {
   id?: number
   first_name: string
   last_name: string
-  date_of_birth: string
+  date_of_birth?: string | null
   medical_record_number: string
+}
+
+export type StorageBrowse = {
+  current: string
+  parent?: string | null
+  directories: string[]
+  drives: string[]
+  writable: boolean
+  exists: boolean
 }
 
 export type SessionSummary = {
@@ -185,6 +194,10 @@ export const api = {
   settings: () => request<Settings>('/api/settings'),
   updateSettings: (body: Partial<Settings>) =>
     request<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  browseStorage: (path?: string) => {
+    const qs = path ? `?${new URLSearchParams({ path })}` : ''
+    return request<StorageBrowse>(`/api/settings/storage/browse${qs}`)
+  },
   procedureTypes: () =>
     request<{ id: number; name: string; is_custom: boolean; use_count: number }[]>(
       '/api/procedure-types',

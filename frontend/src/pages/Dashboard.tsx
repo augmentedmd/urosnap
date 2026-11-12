@@ -82,39 +82,22 @@ export function Dashboard() {
             <div className="space-y-2">
               <div className="font-semibold text-red-900">Local recording service unreachable</div>
               <p className="text-sm text-red-900">
-                Cloudflare only hosts the UI shell. This browser must reach the Windows recorder at{' '}
-                <code className="rounded bg-red-100 px-1">{serviceBase}</code>.
+                Camera preview and sessions need the Windows recorder at{' '}
+                <code className="rounded bg-red-100 px-1">{serviceBase}</code>. Cloudflare never runs the
+                recorder — start it locally, or open the same-origin app at{' '}
+                <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
+                  http://127.0.0.1:8000
+                </a>
+                .
               </p>
-              <ol className="list-decimal space-y-1 pl-5 text-sm text-red-900">
-                <li>
-                  On the Windows PC, start the service:
-                  <pre className="mt-1 overflow-x-auto rounded bg-red-100/80 p-2 text-xs text-red-950">
-                    {`cd backend
-.\\.venv\\Scripts\\Activate.ps1
-uvicorn app.main:app --host 0.0.0.0 --port 8000`}
-                  </pre>
-                </li>
-                <li>
-                  Verify in a new tab:{' '}
-                  <a className="font-semibold underline" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">
-                    {serviceBase}/api/health
-                  </a>
-                </li>
-                <li>
-                  If this UI is on Cloudflare (HTTPS), allow local/private network access when the browser
-                  prompts, then open Settings and confirm the local service URL.
-                </li>
-                <li>
-                  Easiest offline path: open{' '}
-                  <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
-                    http://127.0.0.1:8000
-                  </a>{' '}
-                  (same-origin UI + API on the workstation).
-                </li>
-              </ol>
-              <Link to="/settings" className="inline-flex text-sm font-semibold text-red-950 underline">
-                Open connection settings
-              </Link>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <a className="font-semibold underline text-red-950" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">
+                  Check /api/health
+                </a>
+                <Link to="/settings" className="font-semibold text-red-950 underline">
+                  Connection settings
+                </Link>
+              </div>
             </div>
           </div>
         </Card>

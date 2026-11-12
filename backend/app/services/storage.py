@@ -20,9 +20,9 @@ def session_dir_name(public_id: str, when: datetime | None = None) -> str:
 
 
 class StorageManager:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, root: Path | None = None) -> None:
         self.settings = settings or get_settings()
-        self.root = self.settings.sessions_dir
+        self.root = Path(root) if root is not None else self.settings.sessions_dir
         self.root.mkdir(parents=True, exist_ok=True)
 
     def create_session_tree(self, public_id: str) -> Path:

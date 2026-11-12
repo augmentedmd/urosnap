@@ -49,43 +49,50 @@ class SessionService:
         db.commit()
 
     def create_session(self, db: Session, payload: SessionCreate) -> ProcedureSession:
-        if payload.procedure_type == "Other / Custom Procedure" and not (
-            payload.custom_procedure_name and payload.custom_procedure_name.strip()
-        ):
-            raise ValueError("Custom procedure name is required")
+        # No fields are required to start. Fill safe blanks so recording can proceed.
+        procedure_type = (payload.procedure_type or "").strip() or "Diagnostic cystoscopy"
+        custom_name = (payload.custom_procedure_name or "").strip() or None
+        if procedure_type != "Other / Custom Procedure":
+            custom_name = None
 
+        # Refresh storage root from settings (folder picker may have changed it).
+        from app.services.settings_store import get_sessions_dir
+
+        self.storage = StorageManager(root=get_sessions_dir(db))
         public_id = generate_session_public_id()
         session_path = self.storage.create_session_tree(public_id)
 
+        # SQLite patient.date_of_birth is NOT NULL; use sentinel for "unknown".
+        unknown_dob = date(1900, 1, 1)
         patient = Patient(
-            first_name=payload.patient.first_name.strip(),
-            last_name=payload.patient.last_name.strip(),
-            date_of_birth=payload.patient.date_of_birth,
-            medical_record_number=payload.patient.medical_record_number.strip(),
+            first_name=(payload.patient.first_name or "").strip(),
+            last_name=(payload.patient.last_name or "").strip(),
+            date_of_birth=payload.patient.date_of_birth or unknown_dob,
+            medical_record_number=(payload.patient.medical_record_number or "").strip(),
         )
         db.add(patient)
         db.flush()
 
         try:
-            capture_source = CaptureSourceType(payload.capture_source)
+            capture_source = CaptureSourceType(payload.capture_source or "synthetic")
         except ValueError as exc:
             raise ValueError("Invalid capture source") from exc
 
         session = ProcedureSession(
             public_id=public_id,
             patient_id=patient.id,
-            procedure_type=payload.procedure_type,
-            custom_procedure_name=(payload.custom_procedure_name or None),
-            physician=payload.physician.strip(),
-            location=payload.location.strip(),
-            procedure_date=payload.procedure_date,
+            procedure_type=procedure_type,
+            custom_procedure_name=custom_name,
+            physician=(payload.physician or "").strip(),
+            location=(payload.location or "").strip(),
+            procedure_date=payload.procedure_date or date.today(),
             procedure_time=payload.procedure_time,
             status=SessionStatus.ready,
             notes="",
             storage_path=str(session_path),
             capture_source=capture_source,
-            capture_device_id=payload.capture_device_id,
-            resolution=payload.resolution,
+            capture_device_id=payload.capture_device_id or capture_source.value,
+            resolution=payload.resolution or "1280x720",
             requested_fps=payload.requested_fps,
             snapshot_interval_sec=payload.snapshot_interval_sec,
             images_per_page=payload.images_per_page,
@@ -95,17 +102,16 @@ class SessionService:
         # Procedure type bookkeeping
         proc = (
             db.query(ProcedureType)
-            .filter(ProcedureType.name == payload.procedure_type)
+            .filter(ProcedureType.name == procedure_type)
             .one_or_none()
         )
         if proc:
             proc.use_count += 1
         if (
-            payload.procedure_type == "Other / Custom Procedure"
+            procedure_type == "Other / Custom Procedure"
             and payload.save_custom_procedure
-            and payload.custom_procedure_name
+            and custom_name
         ):
-            custom_name = payload.custom_procedure_name.strip()
             existing_custom = (
                 db.query(ProcedureType).filter(ProcedureType.name == custom_name).one_or_none()
             )
