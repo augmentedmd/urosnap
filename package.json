@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "description": "OpenSnap — Cloudflare UI shell + local recording service",
   "scripts": {
-    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build:ui": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "build": "npm run build:ui",
+    "prepare": "npm run build:ui",
     "deploy": "npm run build && wrangler deploy",
+    "preview": "npm run build && wrangler preview",
     "dry-run": "npm run build && wrangler deploy --dry-run",
     "cf:types": "wrangler types"
   },
