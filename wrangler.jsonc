@@ -5,6 +5,9 @@
   "main": "cloudflare/src/index.ts",
   "compatibility_date": "2026-11-12",
   "upload_source_maps": true,
+  // Required for Workers Builds preview branches (`npx wrangler preview`).
+  "preview_urls": true,
+  "previews": {},
   "observability": {
     "enabled": true,
     "traces": {
@@ -12,7 +15,7 @@
     }
   },
   "assets": {
-    // Produced by `npm run build` (frontend Vite build).
+    // Produced by `npm run build` / `prepare` (frontend Vite build).
     "directory": "frontend/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
