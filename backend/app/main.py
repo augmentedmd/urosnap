@@ -34,7 +34,10 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        get_session_service().seed_procedure_types(db)
+        svc = get_session_service()
+        svc.seed_procedure_types(db)
+        # After restart, nothing can still be recording in this process.
+        svc.reconcile_stale_recordings(db)
     finally:
         db.close()
 

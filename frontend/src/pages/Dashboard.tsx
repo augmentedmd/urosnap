@@ -149,7 +149,17 @@ export function Dashboard() {
                   <td className="px-4 py-3">{s.display_procedure_name}</td>
                   <td className="px-4 py-3">{s.procedure_date}</td>
                   <td className="px-4 py-3">
-                    <Badge tone={s.status === 'recording' ? 'danger' : s.status === 'stopped' ? 'ok' : 'brand'}>
+                    <Badge
+                      tone={
+                        s.status === 'recording'
+                          ? 'danger'
+                          : s.status === 'interrupted' || s.status === 'error'
+                            ? 'warn'
+                            : s.status === 'stopped' || s.status === 'completed'
+                              ? 'ok'
+                              : 'brand'
+                      }
+                    >
                       {s.status}
                     </Badge>
                   </td>

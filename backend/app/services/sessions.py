@@ -48,6 +48,40 @@ class SessionService:
                 db.add(ProcedureType(name=name, is_custom=False))
         db.commit()
 
+    def reconcile_stale_recordings(self, db: Session) -> int:
+        """Mark DB sessions stuck in 'recording' as interrupted when nothing is actually recording.
+
+        Happens after crashes / force-quit / the old Stop-button lock bug.
+        """
+        metrics = self.pipeline.recording_metrics()
+        live_id = metrics.get("session_public_id")
+        live_recording = metrics.get("state") == "recording"
+
+        stuck = (
+            db.query(ProcedureSession)
+            .filter(ProcedureSession.status == SessionStatus.recording)
+            .all()
+        )
+        changed = 0
+        for session in stuck:
+            if live_recording and live_id and session.public_id == live_id:
+                continue
+            session.status = SessionStatus.interrupted
+            if session.recording_stop_time is None:
+                session.recording_stop_time = datetime.utcnow()
+            db.add(
+                AuditLog(
+                    action="session_interrupted",
+                    actor="system",
+                    session_public_id=session.public_id,
+                    detail="Marked interrupted — no active recorder for this session",
+                )
+            )
+            changed += 1
+        if changed:
+            db.commit()
+        return changed
+
     def create_session(self, db: Session, payload: SessionCreate) -> ProcedureSession:
         # No fields are required to start. Fill safe blanks so recording can proceed.
         procedure_type = (payload.procedure_type or "").strip() or "Diagnostic cystoscopy"
@@ -178,6 +212,8 @@ class SessionService:
         date_to: Optional[date] = None,
         limit: int = 50,
     ) -> list[ProcedureSession]:
+        # Heal stale "recording" rows left by crashed EXE / failed Stop.
+        self.reconcile_stale_recordings(db)
         query = db.query(ProcedureSession).options(joinedload(ProcedureSession.patient))
         if procedure_type:
             query = query.filter(
