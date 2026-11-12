@@ -32,10 +32,13 @@ export function LivePreview({ sessionId, className, alt = 'Live endoscopy previe
 
     const tick = async () => {
       try {
-        const res = await fetch(serviceUrl(`/api/sessions/${sessionId}/preview.jpg`), {
-          headers: { 'X-Desktop-Token': 'local-desktop-dev-token' },
-          cache: 'no-store',
-        })
+        const res = await fetch(
+          serviceUrl(`/api/sessions/${sessionId}/preview.jpg?t=${Date.now()}`),
+          {
+            headers: { 'X-Desktop-Token': 'local-desktop-dev-token' },
+            cache: 'no-store',
+          },
+        )
         if (!res.ok) {
           // 503 while warming up is expected — keep polling quietly.
           if (!cancelled) setError(res.status === 503 ? null : `HTTP ${res.status}`)
@@ -43,9 +46,11 @@ export function LivePreview({ sessionId, className, alt = 'Live endoscopy previe
           const blob = await res.blob()
           if (!cancelled) {
             const next = URL.createObjectURL(blob)
-            revoke()
-            blobRef.current = next
+            // Swap image src before revoking the previous blob so the <img> never
+            // briefly goes blank / sticks on an old synthetic frame.
             setSrc(next)
+            if (blobRef.current) URL.revokeObjectURL(blobRef.current)
+            blobRef.current = next
             setError(null)
           }
         }

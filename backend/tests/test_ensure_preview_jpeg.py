@@ -6,7 +6,7 @@ import numpy as np
 from app.services.video.pipeline import PipelineConfig, get_video_pipeline
 
 
-def test_ensure_preview_jpeg_never_blank_for_camera_source(tmp_path: Path):
+def test_camera_fallback_publishes_synthetic_frames(tmp_path: Path):
     pipeline = get_video_pipeline()
     pipeline.configure(
         PipelineConfig(
@@ -19,19 +19,23 @@ def test_ensure_preview_jpeg_never_blank_for_camera_source(tmp_path: Path):
             thumbnails_dir=tmp_path / "th",
         )
     )
-    jpeg = pipeline.ensure_preview_jpeg()
+    jpeg = None
+    deadline = time.monotonic() + 4.0
+    while time.monotonic() < deadline:
+        jpeg = pipeline.get_latest_jpeg()
+        if jpeg:
+            break
+        time.sleep(0.05)
     assert jpeg and len(jpeg) > 500
 
-    # Must look like color bars (high channel variance), not a flat gray placeholder.
     import cv2
 
-    arr = np.frombuffer(jpeg, dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    img = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
     assert img is not None
     assert float(img.std()) > 20.0
 
 
-def test_live_record_after_ensure(tmp_path: Path):
+def test_live_record_after_preview(tmp_path: Path):
     pipeline = get_video_pipeline()
     pipeline.configure(
         PipelineConfig(
@@ -45,7 +49,10 @@ def test_live_record_after_ensure(tmp_path: Path):
             thumbnails_dir=tmp_path / "th",
         )
     )
-    assert pipeline.ensure_preview_jpeg()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and not pipeline.get_latest_jpeg():
+        time.sleep(0.05)
+    assert pipeline.get_latest_jpeg()
     ok, msg = pipeline.start_recording()
     assert ok, msg
     time.sleep(0.5)
