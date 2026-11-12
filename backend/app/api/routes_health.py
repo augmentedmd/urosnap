@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app import __version__
+from app.api.deps import require_desktop_auth
 from app.config import get_settings
 from app.database import get_db
 from app.schemas.api import HealthOut
@@ -55,3 +56,16 @@ def health(db: Session = Depends(get_db)) -> HealthOut:
         camera_names=[d.name for d in cameras],
         warnings=warnings,
     )
+
+
+@router.post("/api/system/shutdown", dependencies=[Depends(require_desktop_auth)])
+def shutdown(request: Request) -> dict:
+    """Quit the desktop app. The EXE has no console window, so this is how users close it."""
+    pipeline = get_video_pipeline()
+    if pipeline.recording_metrics().get("state") == "recording":
+        raise HTTPException(status_code=409, detail="Stop the recording before quitting OpenSnap.")
+    server = getattr(request.app.state, "uvicorn_server", None)
+    if server is None:
+        raise HTTPException(status_code=501, detail="Quit is only available in the desktop app.")
+    server.should_exit = True
+    return {"shutting_down": True}

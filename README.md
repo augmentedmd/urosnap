@@ -126,7 +126,7 @@ The QR token does **not** grant access to patient data, photos, video, or PDFs.
 
 Every PDF contains only:
 
-- Practice letterhead (configurable; default Mount Sinai Doctors – Long Island contact block)
+- Practice letterhead (configurable; default Mount Sinai Doctors contact block)
 - Patient demographics
 - Procedure details
 - One free-text **Notes** field

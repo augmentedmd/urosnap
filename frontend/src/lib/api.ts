@@ -192,6 +192,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<Health>('/api/health'),
+  shutdown: () => request<{ shutting_down: boolean }>('/api/system/shutdown', { method: 'POST' }),
   devices: () => request<CaptureDevice[]>('/api/capture/devices'),
   settings: () => request<Settings>('/api/settings'),
   updateSettings: (body: Partial<Settings>) =>

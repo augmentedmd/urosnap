@@ -26,9 +26,22 @@ export function formatDuration(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
-/** "Nov 12, 2026". Date-only ISO strings are read as calendar dates, not UTC midnight. */
+/** "November 12, 2026". Date-only ISO strings are read as calendar dates, not UTC midnight. */
 export function formatDate(value?: string | null): string {
   if (!value) return '—'
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)

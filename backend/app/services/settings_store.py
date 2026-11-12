@@ -64,11 +64,21 @@ def get_sessions_dir(db: Session | None = None) -> Path:
     return settings.sessions_dir
 
 
+# Earlier builds saved this as the default name; it now reads simply "Mount Sinai Doctors".
+_LEGACY_PRACTICE_NAMES = {"Mount Sinai Doctors – Long Island", "Mount Sinai Doctors - Long Island"}
+
+
+def _practice_name(stored: object, default: str) -> str:
+    if not stored or str(stored) in _LEGACY_PRACTICE_NAMES:
+        return default
+    return str(stored)
+
+
 def get_all_settings(db: Session) -> SettingsOut:
     settings = get_settings()
     stored = _stored_map(db)
     return SettingsOut(
-        practice_name=stored.get("practice_name", settings.practice_name),
+        practice_name=_practice_name(stored.get("practice_name"), settings.practice_name),
         practice_address_line1=stored.get("practice_address_line1", settings.practice_address_line1),
         practice_address_line2=stored.get("practice_address_line2", settings.practice_address_line2),
         practice_phone=stored.get("practice_phone", settings.practice_phone),

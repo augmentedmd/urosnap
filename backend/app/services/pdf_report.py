@@ -35,10 +35,31 @@ DEFAULT_LOGO_NAME = "mount_sinai_doctors_logo.png"
 
 
 def format_report_date(value: date | datetime | None) -> str:
-    """Nov 12, 2026 — built by hand because %-d is not supported on Windows."""
+    """November 12, 2026 — built by hand because %-d is not supported on Windows."""
     if value is None:
         return "—"
-    return f"{value:%b} {value.day}, {value.year}"
+    return f"{value:%B} {value.day}, {value.year}"
+
+
+_SMALL_WORDS = {"a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "with"}
+
+
+def title_case(text: str) -> str:
+    """Title-case a procedure name, keeping words that already carry capitals (e.g. SpaceOAR)."""
+    words = text.split()
+    out = []
+    for i, word in enumerate(words):
+        if any(c.isupper() for c in word[1:]):
+            out.append(word)
+        elif i > 0 and word.lower() in _SMALL_WORDS:
+            out.append(word.lower())
+        else:
+            out.append(word[:1].upper() + word[1:])
+    return " ".join(out)
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def custom_logo_path(settings: Settings | None = None) -> Path:
@@ -164,9 +185,9 @@ class PdfReportGenerator:
                 fontSize=17,
                 leading=21,
                 textColor=MS_NAVY,
-                alignment=TA_LEFT,
+                alignment=TA_CENTER,
                 spaceBefore=4,
-                spaceAfter=8,
+                spaceAfter=10,
             )
         )
         styles.add(
@@ -242,7 +263,7 @@ class PdfReportGenerator:
         )
         story.append(rule)
         story.append(Spacer(1, 10))
-        story.append(Paragraph(session.display_procedure_name, styles["ReportTitle"]))
+        story.append(Paragraph(_escape(title_case(session.display_procedure_name)), styles["ReportTitle"]))
 
         patient = session.patient
         patient_name = (
@@ -251,12 +272,11 @@ class PdfReportGenerator:
         dob = patient.date_of_birth
         dob_text = "—" if dob is None or dob.year <= 1900 else format_report_date(dob)
         demo_data = [
-            ["Patient Name", patient_name],
-            ["Date of Birth", dob_text],
-            ["Medical Record Number", patient.medical_record_number or "—"],
-            ["Procedure", session.display_procedure_name],
-            ["Procedure Date", format_report_date(session.procedure_date)],
-            ["Location", session.location or "—"],
+            ["Patient Name:", patient_name],
+            ["Date of Birth:", dob_text],
+            ["Medical Record Number:", patient.medical_record_number or "—"],
+            ["Procedure Date:", format_report_date(session.procedure_date)],
+            ["Urologist:", session.physician or "—"],
         ]
         table = Table(demo_data, colWidths=[2.0 * inch, usable_width - 2.0 * inch])
         table.setStyle(
@@ -279,24 +299,11 @@ class PdfReportGenerator:
         )
         story.append(table)
 
-        story.append(Paragraph("Notes", styles["SectionHead"]))
-        notes_text = (notes or "").strip() or "—"
-        # Preserve paragraphs / line breaks
-        for block in notes_text.split("\n"):
-            safe = (
-                block.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                or "&nbsp;"
-            )
-            story.append(Paragraph(safe, styles["BodyNotes"]))
-            story.append(Spacer(1, 4))
-
         selected = [s for s in snapshots if s.selected]
         selected.sort(key=lambda s: (s.display_order is None, s.display_order or 0, s.sequence_number))
 
         if selected:
-            story.append(Paragraph("Photographs", styles["SectionHead"]))
+            story.append(Paragraph("Captured Images:", styles["SectionHead"]))
             cols, rows = calculate_grid(images_per_page)
             usable_height = letter[1] - doc.topMargin - doc.bottomMargin - 0.6 * inch
             cell_w = usable_width / cols
@@ -379,6 +386,29 @@ class PdfReportGenerator:
                 story.append(KeepTogether(row_flowables))
                 idx += cols
 
+        notes_blocks = (notes or "").strip().split("\n")
+        if any(block.strip() for block in notes_blocks):
+            story.append(Paragraph("Notes:", styles["SectionHead"]))
+            # One row per line so long notes can break across pages while keeping the border.
+            note_rows = [
+                [Paragraph(_escape(block) or "&nbsp;", styles["BodyNotes"])] for block in notes_blocks
+            ]
+            notes_box = Table(note_rows, colWidths=[usable_width])
+            notes_box.setStyle(
+                TableStyle(
+                    [
+                        ("BOX", (0, 0), (-1, -1), 0.75, MS_NAVY),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                        ("TOPPADDING", (0, 0), (-1, -1), 1),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                        ("TOPPADDING", (0, 0), (-1, 0), 8),
+                        ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                    ]
+                )
+            )
+            story.append(notes_box)
+
         def _footer(canvas, doc_):  # type: ignore[no-untyped-def]
             canvas.saveState()
             width = letter[0] - doc_.leftMargin - doc_.rightMargin
@@ -390,12 +420,6 @@ class PdfReportGenerator:
             canvas.setFillColor(MS_NAVY)
             page_num = canvas.getPageNumber()
             canvas.drawCentredString(letter[0] / 2, 0.4 * inch, f"Page {page_num}")
-            canvas.drawString(doc_.leftMargin, 0.4 * inch, practice["name"])
-            canvas.drawRightString(
-                letter[0] - doc_.rightMargin,
-                0.4 * inch,
-                f"Generated {format_report_date(datetime.now())}",
-            )
             canvas.restoreState()
 
         doc.build(story, onFirstPage=_footer, onLaterPages=_footer)

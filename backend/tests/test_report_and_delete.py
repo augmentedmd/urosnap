@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
-from app.services.pdf_report import format_report_date
+from app.services.pdf_report import format_report_date, title_case
 
 
 def _create(client, **overrides) -> dict:
@@ -57,29 +57,64 @@ def _record_with_snapshots(client, sid: str, count: int) -> None:
 
 
 def test_format_report_date():
-    assert format_report_date(date(2026, 11, 3)) == "Nov 3, 2026"
-    assert format_report_date(datetime(2026, 1, 12, 23, 5)) == "Jan 12, 2026"
+    assert format_report_date(date(2026, 11, 3)) == "November 3, 2026"
+    assert format_report_date(datetime(2026, 1, 12, 23, 5)) == "January 12, 2026"
     assert format_report_date(None) == "—"
+
+
+def test_title_case():
+    assert title_case("Diagnostic cystoscopy") == "Diagnostic Cystoscopy"
+    assert title_case("SpaceOAR and fiducial marker placement") == "SpaceOAR and Fiducial Marker Placement"
+    assert title_case("Other / Custom Procedure") == "Other / Custom Procedure"
+
+
+def _pdf_text(client, sid: str, notes: str) -> tuple[PdfReader, str]:
+    res = client.post(f"/api/sessions/{sid}/reports", json={"notes": notes, "images_per_page": 4})
+    assert res.status_code == 200, res.text
+    pdf = PdfReader(BytesIO(client.get(res.json()["download_url"]).content))
+    return pdf, "\n".join(p.extract_text() for p in pdf.pages)
 
 
 def test_report_layout(client):
     sid = _create(client)["public_id"]
     _record_with_snapshots(client, sid, 2)
-    res = client.post(f"/api/sessions/{sid}/reports", json={"notes": "Short note.", "images_per_page": 4})
-    assert res.status_code == 200, res.text
-    pdf = PdfReader(BytesIO(client.get(res.json()["download_url"]).content))
+    pdf, full = _pdf_text(client, sid, "Short note about the bladder.")
     first = pdf.pages[0].extract_text()
-    full = "\n".join(p.extract_text() for p in pdf.pages)
 
-    assert "Nov 3, 2026" in first
-    assert "Jan 5, 1980" in first
+    assert "Diagnostic Cystoscopy" in first
+    assert "Mount Sinai Doctors" in first and "Long Island" not in full
+    assert "November 3, 2026" in first
+    assert "January 5, 1980" in first
+    assert "Urologist:" in first and "Dr. Hidden Urologist" in first
+    assert "Generated" not in full
+    # Practice name appears once, in the letterhead, not repeated in the footer.
+    assert first.count("Mount Sinai Doctors") == 1
     assert "2026-11-03" not in full
     assert "Procedure Time" not in full and "14:37" not in full
-    assert "Performing Urologist" not in full and "Hidden Urologist" not in full
-    assert "Photographs" in first
+    assert "Performing Urologist" not in full
+    assert "Location" not in full and "Suite 2" not in full
+    # Procedure name is the page title only, not repeated as a table row.
+    assert full.count("Diagnostic Cystoscopy") == 1 and "Diagnostic cystoscopy" not in full
+    assert "Photographs" not in full
+    assert "Captured Images:" in first
+    assert full.index("Captured Images:") < full.index("Notes:") < full.index("Short note about the bladder.")
     # Logo plus both photographs on page 1.
     assert len(pdf.pages) == 1
     assert len(pdf.pages[0].images) == 3
+
+
+def test_report_omits_empty_notes(client):
+    sid = _create(client)["public_id"]
+    _pdf, full = _pdf_text(client, sid, "   \n  ")
+    assert "Notes" not in full
+
+
+def test_long_notes_break_across_pages(client):
+    sid = _create(client)["public_id"]
+    notes = "\n".join(f"Line {i} of a long procedure note." for i in range(150))
+    pdf, full = _pdf_text(client, sid, notes)
+    assert len(pdf.pages) >= 2
+    assert "Line 149 of a long procedure note." in full
 
 
 def test_delete_session_and_files(client):
