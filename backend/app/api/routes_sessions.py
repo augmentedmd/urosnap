@@ -334,8 +334,11 @@ def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
 
     # Idempotent bind — configure() no longer restarts when already attached.
     get_session_service().attach_session_for_review(session)
-    # Never block waiting; always return a real moving frame (synthetic if needed).
-    frame = pipeline.ensure_preview_jpeg() or _placeholder_jpeg()
+    # Short wait for the same-thread camera open (PR #9 style); do not inject
+    # synthetic frames into the pipeline (that masked real camera upgrades).
+    frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=0.35)
+    if frame is None:
+        frame = _placeholder_jpeg("Opening camera...")
     return Response(
         content=frame,
         media_type="image/jpeg",

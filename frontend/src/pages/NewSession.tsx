@@ -51,10 +51,13 @@ export function NewSession() {
     setForm((f) => {
       const preferredId = settings.data?.preferred_capture_device_id || ''
       const preferred = devices.data?.find((d) => d.id === preferredId && d.available)
-      // Default to synthetic so preview/record always works. Cameras are optional —
-      // auto-selecting a flaky DirectShow device was hanging the capture loop.
-      const synthetic = devices.data?.find((d) => d.id === 'synthetic')
-      const chosen = preferred || synthetic || devices.data?.[0]
+      const firstCamera = devices.data?.find((d) => d.source_type === 'camera' && d.available)
+      // PR #9 behavior: prefer a real capture device when present.
+      const chosen =
+        preferred ||
+        firstCamera ||
+        devices.data?.find((d) => d.id === 'synthetic') ||
+        devices.data?.[0]
 
       return {
         ...f,
