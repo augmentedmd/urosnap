@@ -65,6 +65,9 @@ export function Recording() {
 
   const s = status.data
   const recording = s?.state === 'recording'
+  // Always allow Stop while a take is in progress — never trap the user if status flaps to "error".
+  const canStop =
+    recording || ((s?.elapsed_sec ?? 0) > 0 && s?.state !== 'stopped' && s?.state !== 'ready')
 
   return (
     <div>
@@ -113,7 +116,7 @@ export function Recording() {
             <Button
               size="lg"
               variant="danger"
-              disabled={!recording || stop.isPending}
+              disabled={!canStop || stop.isPending}
               onClick={() => stop.mutate()}
             >
               <Square className="h-5 w-5 fill-current" />

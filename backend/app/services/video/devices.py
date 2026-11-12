@@ -33,10 +33,11 @@ _index_backends: dict[int, int] = {}
 def _windows_backends() -> list[tuple[int, str]]:
     """Preferred OpenCV backends on Windows for UVC / HDMI capture sticks."""
     backends: list[tuple[int, str]] = []
-    if hasattr(cv2, "CAP_DSHOW"):
-        backends.append((cv2.CAP_DSHOW, "DirectShow"))
+    # MSMF tends to behave better when opened from a worker thread; DSHOW next.
     if hasattr(cv2, "CAP_MSMF"):
         backends.append((cv2.CAP_MSMF, "MediaFoundation"))
+    if hasattr(cv2, "CAP_DSHOW"):
+        backends.append((cv2.CAP_DSHOW, "DirectShow"))
     backends.append((cv2.CAP_ANY, "Auto"))
     return backends
 
@@ -197,22 +198,26 @@ def open_capture(
         backends = [(preferred, preferred_name)] + [(b, n) for b, n in backends if b != preferred]
 
     last_error = "unknown"
-    for backend, backend_name in backends:
-        for cap in _open_attempts(index, backend):
-            if not cap.isOpened():
-                cap.release()
-                last_error = f"{backend_name} could not open index {index}"
-                continue
-            ok, _frame = cap.read()
-            if not ok:
-                cap.release()
-                last_error = f"{backend_name} opened index {index} but produced no frames"
-                continue
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            _index_backends[index] = backend
-            logger.info("Opened camera:%s with %s", index, backend_name)
-            return cap
+    for attempt in range(3):
+        for backend, backend_name in backends:
+            for cap in _open_attempts(index, backend):
+                if not cap.isOpened():
+                    cap.release()
+                    last_error = f"{backend_name} could not open index {index}"
+                    continue
+                ok, _frame = cap.read()
+                if not ok:
+                    cap.release()
+                    last_error = f"{backend_name} opened index {index} but produced no frames"
+                    continue
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                _index_backends[index] = backend
+                logger.info(
+                    "Opened camera:%s with %s (attempt %s)", index, backend_name, attempt + 1
+                )
+                return cap
+        time.sleep(0.4 * (attempt + 1))
 
     raise RuntimeError(
         f"Unable to open camera index {index} ({last_error}). "

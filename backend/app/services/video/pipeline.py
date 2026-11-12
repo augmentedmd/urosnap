@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from collections import deque
@@ -177,10 +178,12 @@ class VideoPipeline:
             if self._config.session_public_id:
                 state = "ready"
             if self._state.recording:
+                # Keep "recording" even if a capture warning/error is present so the UI
+                # can still Stop (error must not lock the session).
                 state = "recording"
             elif self._state.stopped_at is not None and self._config.session_public_id:
                 state = "stopped"
-            if self._state.error:
+            elif self._state.error:
                 state = "error"
             return {
                 "session_public_id": self._config.session_public_id,
@@ -250,25 +253,49 @@ class VideoPipeline:
 
     def _run_loop(self) -> None:
         settings = get_settings()
+        # DirectShow/COM can fail when OpenCV opens cameras from a worker thread
+        # without initializing COM on that thread.
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+
+                ctypes.windll.ole32.CoInitializeEx(None, 0x0)  # COINIT_MULTITHREADED
+            except Exception:  # noqa: BLE001
+                pass
+
         cap: Optional[cv2.VideoCapture] = None
         source_type = self._config.source_type
         try:
             if source_type != "synthetic":
-                try:
-                    cap = open_capture(source_type, self._config.device_id, self._config.resolution)
+                last_exc: Optional[Exception] = None
+                for attempt in range(4):
+                    try:
+                        cap = open_capture(
+                            source_type, self._config.device_id, self._config.resolution
+                        )
+                        with self._lock:
+                            self._state.connected = True
+                            self._state.error = None
+                            self._state.warning = None
+                        last_exc = None
+                        break
+                    except Exception as exc:  # noqa: BLE001
+                        last_exc = exc
+                        time.sleep(0.35 * (attempt + 1))
+                if last_exc is not None:
+                    # Soft-fail: keep UI usable; synthetic still produces a live preview.
                     with self._lock:
                         self._state.connected = True
                         self._state.error = None
-                except Exception as exc:  # noqa: BLE001
-                    with self._lock:
-                        self._state.connected = False
-                        self._state.error = str(exc)
-                        self._state.warning = "Falling back to synthetic video"
+                        self._state.warning = (
+                            f"Falling back to synthetic video ({last_exc})"
+                        )
                     source_type = "synthetic"
                     cap = None
             else:
                 with self._lock:
                     self._state.connected = True
+                    self._state.error = None
 
             width, height = parse_resolution(self._config.resolution)
             next_frame_due = time.monotonic()
@@ -286,16 +313,20 @@ class VideoPipeline:
                 if frame is None:
                     with self._lock:
                         self._state.connected = False
-                        self._state.error = "Capture device disconnected"
+                        # Warning only — never flip session into a hard error that blocks Stop.
+                        self._state.warning = "Capture device disconnected; retrying…"
                     time.sleep(0.2)
                     # Attempt reconnect for cameras
                     if source_type == "camera" and cap is not None:
                         cap.release()
                         try:
-                            cap = open_capture(source_type, self._config.device_id, self._config.resolution)
+                            cap = open_capture(
+                                source_type, self._config.device_id, self._config.resolution
+                            )
                             with self._lock:
                                 self._state.connected = True
                                 self._state.error = None
+                                self._state.warning = None
                         except Exception:  # noqa: BLE001
                             pass
                     continue
