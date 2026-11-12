@@ -334,9 +334,9 @@ def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
 
     # Idempotent bind — configure() no longer restarts when already attached.
     get_session_service().attach_session_for_review(session)
-    frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=0.75)
+    # Never block the API worker waiting for frames — that starved Start/Stop.
+    frame = pipeline.get_latest_jpeg()
     if frame is None:
-        # Soft placeholder keeps the UI alive while the capture thread warms up.
         frame = _placeholder_jpeg()
     return Response(
         content=frame,

@@ -120,20 +120,18 @@ class VideoPipeline:
                 return False, "Already recording"
             if not self._config.video_dir:
                 return False, "Session video directory not configured"
+            # Preview must already be producing frames — do not block Start on camera health.
+            if self._latest_frame is None and (not self._thread or not self._thread.is_alive()):
+                self._start_acquisition_unlocked()
             width, height = parse_resolution(self._config.resolution)
             self._config.video_dir.mkdir(parents=True, exist_ok=True)
             stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             self._temp_video_path = self._config.video_dir / f"recording_{stamp}.avi"
             self._final_video_path = self._config.video_dir / f"recording_{stamp}.mp4"
-            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-            self._writer = cv2.VideoWriter(
-                str(self._temp_video_path),
-                fourcc,
-                float(self._config.requested_fps),
-                (width, height),
+            self._writer = self._open_video_writer(
+                self._temp_video_path, float(self._config.requested_fps), width, height
             )
-            if not self._writer.isOpened():
-                self._writer = None
+            if self._writer is None:
                 self._state.error = "Failed to open video writer"
                 return False, self._state.error
 
@@ -142,7 +140,7 @@ class VideoPipeline:
             self._state.stopped_at = None
             self._state.frames_written = 0
             self._state.error = None
-            self._state.warning = None
+            # Keep any camera/synthetic warning — Start must not depend on a perfect capture.
             self._last_auto_snapshot_mono = time.monotonic()
             self._record_frame_times.clear()
             if not self._thread or not self._thread.is_alive():
@@ -269,8 +267,22 @@ class VideoPipeline:
                 self._lock.acquire()
         self._start_acquisition_unlocked()
 
+    def _open_video_writer(
+        self, path: Path, fps: float, width: int, height: int
+    ) -> Optional[cv2.VideoWriter]:
+        for codec in ("MJPG", "XVID", "mp4v"):
+            writer = cv2.VideoWriter(
+                str(path),
+                cv2.VideoWriter_fourcc(*codec),
+                fps,
+                (width, height),
+            )
+            if writer.isOpened():
+                return writer
+            writer.release()
+        return None
+
     def _run_loop(self) -> None:
-        settings = get_settings()
         # DirectShow/COM can fail when OpenCV opens cameras from a worker thread
         # without initializing COM on that thread.
         if sys.platform.startswith("win"):
@@ -281,45 +293,64 @@ class VideoPipeline:
             except Exception:  # noqa: BLE001
                 pass
 
+        requested_source = self._config.source_type
+        device_id = self._config.device_id
+        resolution = self._config.resolution
+        width, height = parse_resolution(resolution)
+
+        # Always publish frames immediately (synthetic), then upgrade to camera/file
+        # when a background open succeeds. Never block this loop on hung OpenCV I/O.
         cap: Optional[cv2.VideoCapture] = None
-        source_type = self._config.source_type
-        try:
-            if source_type != "synthetic":
-                last_exc: Optional[Exception] = None
-                for attempt in range(4):
-                    try:
-                        cap = open_capture(
-                            source_type, self._config.device_id, self._config.resolution
-                        )
-                        with self._lock:
-                            self._state.connected = True
-                            self._state.error = None
-                            self._state.warning = None
-                        last_exc = None
-                        break
-                    except Exception as exc:  # noqa: BLE001
-                        last_exc = exc
-                        time.sleep(0.35 * (attempt + 1))
-                if last_exc is not None:
-                    # Soft-fail: keep UI usable; synthetic still produces a live preview.
-                    with self._lock:
-                        self._state.connected = True
-                        self._state.error = None
-                        self._state.warning = (
-                            f"Falling back to synthetic video ({last_exc})"
-                        )
-                    source_type = "synthetic"
-                    cap = None
+        effective_source = "synthetic" if requested_source == "camera" else requested_source
+        if requested_source == "file":
+            # File open is usually fast; still keep synthetic until it lands.
+            effective_source = "synthetic"
+
+        with self._lock:
+            self._state.connected = True
+            self._state.error = None
+            if requested_source == "camera":
+                self._state.warning = "Opening capture device…"
+            elif requested_source == "file":
+                self._state.warning = "Opening sample video…"
             else:
-                with self._lock:
-                    self._state.connected = True
-                    self._state.error = None
+                self._state.warning = None
+                effective_source = "synthetic"
 
-            width, height = parse_resolution(self._config.resolution)
-            next_frame_due = time.monotonic()
-            last_record_write = 0.0
-            consecutive_misses = 0
+        open_box: dict[str, object] = {}
+        open_thread: Optional[threading.Thread] = None
 
+        def _spawn_open() -> threading.Thread:
+            box: dict[str, object] = open_box
+            box.clear()
+
+            def worker() -> None:
+                if sys.platform.startswith("win"):
+                    try:
+                        import ctypes
+
+                        ctypes.windll.ole32.CoInitializeEx(None, 0x0)
+                    except Exception:  # noqa: BLE001
+                        pass
+                try:
+                    box["cap"] = open_capture(requested_source, device_id, resolution)
+                except Exception as exc:  # noqa: BLE001
+                    box["err"] = str(exc)
+
+            thread = threading.Thread(target=worker, name="camera-open", daemon=True)
+            thread.start()
+            return thread
+
+        if requested_source != "synthetic":
+            open_thread = _spawn_open()
+
+        open_started_at = time.monotonic()
+        open_timeout_sec = 2.5
+        next_frame_due = time.monotonic()
+        last_record_write = 0.0
+        next_camera_retry = time.monotonic() + 8.0
+
+        try:
             while not self._stop_event.is_set():
                 now = time.monotonic()
                 # Target ~30 FPS acquisition for preview; recording gated separately
@@ -328,53 +359,69 @@ class VideoPipeline:
                     continue
                 next_frame_due = now + (1.0 / 30.0)
 
-                frame = self._read_frame(cap, source_type, width, height)
+                # Collect background open result without blocking the frame loop.
+                if open_thread is not None and effective_source == "synthetic":
+                    if not open_thread.is_alive():
+                        opened = open_box.get("cap")
+                        if isinstance(opened, cv2.VideoCapture):
+                            cap = opened
+                            effective_source = requested_source
+                            with self._lock:
+                                self._state.warning = None
+                        else:
+                            err = open_box.get("err") or "camera unavailable"
+                            with self._lock:
+                                self._state.warning = f"Using synthetic preview ({err})"
+                        open_thread = None
+                    elif now - open_started_at >= open_timeout_sec:
+                        # Abandon hung opener; keep synthetic frames flowing.
+                        with self._lock:
+                            self._state.warning = (
+                                f"Using synthetic preview (camera open timed out after "
+                                f"{open_timeout_sec:.1f}s)"
+                            )
+                        open_thread = None
+                        next_camera_retry = now + 8.0
+
+                # Slow retry if we wanted a camera but are still on synthetic.
+                if (
+                    requested_source == "camera"
+                    and effective_source == "synthetic"
+                    and open_thread is None
+                    and now >= next_camera_retry
+                ):
+                    open_started_at = now
+                    open_timeout_sec = 2.0
+                    open_thread = _spawn_open()
+                    next_camera_retry = now + 8.0
+
+                frame = self._read_frame(cap, effective_source, width, height)
                 if frame is None:
                     consecutive_misses += 1
-                    with self._lock:
-                        self._state.connected = False
-                        # Warning only — never flip session into a hard error that blocks Stop.
-                        self._state.warning = "Capture device disconnected; retrying…"
-                    # After repeated failures, soft-fallback so preview is never blank.
-                    if source_type == "camera" and consecutive_misses >= 10:
+                    # Drop back to synthetic immediately — never call blocking open here.
+                    if effective_source == "camera":
                         if cap is not None:
                             try:
                                 cap.release()
                             except Exception:  # noqa: BLE001
                                 pass
                             cap = None
-                        source_type = "synthetic"
+                        effective_source = "synthetic"
                         consecutive_misses = 0
+                        next_camera_retry = time.monotonic() + 5.0
                         with self._lock:
                             self._state.connected = True
                             self._state.error = None
                             self._state.warning = (
-                                "Camera stopped producing frames; using synthetic preview"
+                                "Capture device disconnected; using synthetic preview"
                             )
+                        frame = self._read_frame(None, "synthetic", width, height)
+                    else:
+                        with self._lock:
+                            self._state.connected = False
+                            self._state.warning = "Capture device disconnected; retrying…"
+                        time.sleep(0.05)
                         continue
-                    time.sleep(0.15)
-                    # Attempt reconnect for cameras
-                    if source_type == "camera":
-                        if cap is not None:
-                            try:
-                                cap.release()
-                            except Exception:  # noqa: BLE001
-                                pass
-                            cap = None
-                        try:
-                            cap = open_capture(
-                                source_type, self._config.device_id, self._config.resolution
-                            )
-                            with self._lock:
-                                self._state.connected = True
-                                self._state.error = None
-                                self._state.warning = None
-                            consecutive_misses = 0
-                        except Exception:  # noqa: BLE001
-                            pass
-                    continue
-
-                consecutive_misses = 0
 
                 ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
                 with self._lock:
@@ -419,7 +466,10 @@ class VideoPipeline:
 
         finally:
             if cap is not None:
-                cap.release()
+                try:
+                    cap.release()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _read_frame(
         self,
