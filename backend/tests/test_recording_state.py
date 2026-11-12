@@ -10,6 +10,8 @@ def test_recording_state_not_overridden_by_error():
             video_dir=None,
         )
     )
+    # Stop the acquisition thread so it can't clear the injected camera error mid-test.
+    pipeline.shutdown()
     with pipeline._lock:
         pipeline._state.recording = True
         pipeline._state.started_at = 1.0

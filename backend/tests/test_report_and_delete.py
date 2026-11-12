@@ -35,8 +35,19 @@ def _create(client, **overrides) -> dict:
     return res.json()
 
 
+def _start(client, sid: str) -> None:
+    # The synthetic source needs a moment to publish its first frame after the session opens.
+    deadline = time.time() + 5
+    while True:
+        res = client.post(f"/api/sessions/{sid}/recording/start")
+        if res.status_code == 200 or time.time() > deadline:
+            break
+        time.sleep(0.1)
+    assert res.status_code == 200, res.text
+
+
 def _record_with_snapshots(client, sid: str, count: int) -> None:
-    assert client.post(f"/api/sessions/{sid}/recording/start").status_code == 200
+    _start(client, sid)
     for _ in range(count):
         assert client.post(f"/api/sessions/{sid}/snapshots").status_code == 200
         time.sleep(0.15)
@@ -96,7 +107,7 @@ def test_delete_keeps_files_by_default(client):
 
 def test_cannot_delete_while_recording(client):
     sid = _create(client)["public_id"]
-    assert client.post(f"/api/sessions/{sid}/recording/start").status_code == 200
+    _start(client, sid)
     try:
         res = client.delete(f"/api/sessions/{sid}")
         assert res.status_code == 409
