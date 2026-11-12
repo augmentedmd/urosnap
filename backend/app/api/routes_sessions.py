@@ -306,17 +306,38 @@ def snapshot_thumbnail(
     return FileResponse(path, media_type="image/jpeg")
 
 
+def _placeholder_jpeg(message: str = "Starting preview…") -> bytes:
+    import cv2
+    import numpy as np
+
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:] = (28, 28, 28)
+    cv2.putText(
+        img,
+        message,
+        (36, 190),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (220, 220, 220),
+        2,
+        cv2.LINE_AA,
+    )
+    ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+    return buf.tobytes() if ok else b""
+
+
 @router.get("/sessions/{session_id}/preview.jpg")
 def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
-    """Single JPEG frame for cross-origin UI shells (Cloudflare → local service)."""
+    """Single JPEG frame for the recording UI (polled; must not restart capture each time)."""
     pipeline = get_video_pipeline()
-    # Ensure pipeline is bound to this session's directories when idle.
     from app.services.sessions import get_session_service
 
+    # Idempotent bind — configure() no longer restarts when already attached.
     get_session_service().attach_session_for_review(session)
-    frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=1.5)
+    frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=0.75)
     if frame is None:
-        raise HTTPException(status_code=503, detail="No preview frame yet")
+        # Soft placeholder keeps the UI alive while the capture thread warms up.
+        frame = _placeholder_jpeg()
     return Response(
         content=frame,
         media_type="image/jpeg",

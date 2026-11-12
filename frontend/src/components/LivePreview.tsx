@@ -36,21 +36,26 @@ export function LivePreview({ sessionId, className, alt = 'Live endoscopy previe
           headers: { 'X-Desktop-Token': 'local-desktop-dev-token' },
           cache: 'no-store',
         })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const blob = await res.blob()
-        if (cancelled) return
-        const next = URL.createObjectURL(blob)
-        revoke()
-        blobRef.current = next
-        setSrc(next)
-        setError(null)
+        if (!res.ok) {
+          // 503 while warming up is expected — keep polling quietly.
+          if (!cancelled) setError(res.status === 503 ? null : `HTTP ${res.status}`)
+        } else {
+          const blob = await res.blob()
+          if (!cancelled) {
+            const next = URL.createObjectURL(blob)
+            revoke()
+            blobRef.current = next
+            setSrc(next)
+            setError(null)
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setError((err as Error).message || 'Preview unavailable')
         }
       } finally {
         if (!cancelled) {
-          timer = window.setTimeout(() => void tick(), 200)
+          timer = window.setTimeout(() => void tick(), 250)
         }
       }
     }

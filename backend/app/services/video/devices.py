@@ -106,6 +106,17 @@ def list_capture_devices(max_index: int = 8, *, force: bool = False) -> list[Cap
     ):
         return list(_device_cache)
 
+    # Do not open cameras for probing while the pipeline already owns the device —
+    # that steals the handle and causes preview 503 / synthetic fallback loops.
+    if not force and _device_cache is not None:
+        try:
+            from app.services.video.pipeline import get_video_pipeline
+
+            if get_video_pipeline().is_acquiring():
+                return list(_device_cache)
+        except Exception:  # noqa: BLE001
+            pass
+
     settings = get_settings()
     devices: list[CaptureDevice] = [
         CaptureDevice(
