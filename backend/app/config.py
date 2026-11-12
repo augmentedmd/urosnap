@@ -5,17 +5,19 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.paths import backend_assets_dir, default_data_dir
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="OPENSNAP_", env_file=".env", extra="ignore")
 
     app_name: str = "OpenSnap"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
 
     # Storage
-    data_dir: Path = Path(__file__).resolve().parents[2] / "data"
+    data_dir: Path = default_data_dir()
     storage_subdir: str = "opensnap_sessions"
     database_name: str = "opensnap.db"
 
@@ -31,7 +33,7 @@ class Settings(BaseSettings):
     default_images_per_page: int = 4
     default_resolution: str = "1280x720"
     default_capture_source: str = "synthetic"  # synthetic | file | camera
-    sample_video_path: Path = Path(__file__).resolve().parents[1] / "assets" / "sample_video.mp4"
+    sample_video_path: Path = backend_assets_dir() / "sample_video.mp4"
 
     # Pairing
     pairing_token_ttl_seconds: int = 900  # unused link expiry

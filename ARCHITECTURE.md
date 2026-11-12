@@ -4,35 +4,24 @@ Local-first, browser-based urology video capture and procedure reporting system.
 
 ## Components
 
+**Primary distribution:** Windows `OpenSnap.exe` (PyInstaller). Double-click starts the local service and opens the browser to the same-origin UI. See [docs/WINDOWS_EXE.md](docs/WINDOWS_EXE.md).
+
 ```
-┌──────────────────────┐
-│ Cloudflare Worker    │  optional: static UI shell only (no PHI/media)
-│ opensnap-ui          │
-└──────────┬───────────┘
-           │ loads SPA assets
-           ▼
-┌─────────────────────┐   browser → local service   ┌──────────────────────────────┐
-│  Desktop Browser    │◄───────────────────────────►│  Local Recording Service     │
-│  (React SPA)        │   REST / MJPEG / WebSocket  │  (Python / FastAPI)          │
-│                     │   never via Cloudflare      │                              │
-│  Dashboard          │                             │  • Video acquisition         │
-│  New Session        │                             │  • Recording engine          │
-│  Active Recording   │                             │  • Snapshot scheduler        │
-│  Image Gallery      │                             │  • PDF generation            │
-│  Report Generator   │                             │  • SQLite + local storage    │
-│  Previous Sessions  │                             │  • Pairing / auth            │
-│  Settings           │                             └──────────────┬───────────────┘
-└─────────────────────┘                                            │
-                                                                   │ LAN (control only)
-┌─────────────────────┐                                            │
-│  iPhone Safari      │◄───────────────────────────────────────────┘
-│  Remote Control     │  QR may open Cloudflare UI shell with
-│  Start / Stop / Snap│  ?service=http://workstation-lan:8000
-│  Status only        │  Commands hit the local service directly
+┌─────────────────────────────────────────────────────────────┐
+│  OpenSnap.exe (Windows workstation)                         │
+│  ┌─────────────────────┐    ┌────────────────────────────┐  │
+│  │  Desktop Browser    │◄──►│  Local Recording Service   │  │
+│  │  (bundled React UI) │    │  FastAPI + OpenCV + SQLite │  │
+│  └─────────────────────┘    └─────────────┬──────────────┘  │
+└───────────────────────────────────────────┼─────────────────┘
+                                            │ optional LAN
+┌─────────────────────┐                     │
+│  iPhone Safari      │◄────────────────────┘
+│  Remote Control     │  start / stop / snapshot only
 └─────────────────────┘
 ```
 
-See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) for the Cloudflare UI-shell deployment model.
+Optional: Cloudflare may still host a **UI shell only** for demos; clinical use should prefer the EXE. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
 
 ## Data flow
 

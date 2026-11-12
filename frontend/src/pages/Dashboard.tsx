@@ -82,13 +82,12 @@ export function Dashboard() {
             <div className="space-y-2">
               <div className="font-semibold text-red-900">Local recording service unreachable</div>
               <p className="text-sm text-red-900">
-                Camera preview and sessions need the Windows recorder at{' '}
-                <code className="rounded bg-red-100 px-1">{serviceBase}</code>. Cloudflare never runs the
-                recorder — start it locally, or open the same-origin app at{' '}
+                Run <strong>OpenSnap.exe</strong> on the Windows PC (double-click). It starts the
+                recorder and opens the app at{' '}
                 <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
                   http://127.0.0.1:8000
                 </a>
-                .
+                . This Cloudflare page cannot capture video by itself.
               </p>
               <div className="flex flex-wrap gap-3 text-sm">
                 <a className="font-semibold underline text-red-950" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">

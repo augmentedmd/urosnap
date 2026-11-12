@@ -22,6 +22,7 @@ from app.database import SessionLocal, engine
 from app.models import entities as _entities  # noqa: F401
 from app.database import Base
 from app.middleware_pna import PrivateNetworkAccessMiddleware
+from app.paths import frontend_dist_dir
 from app.services.sessions import get_session_service
 from app.services.video.pipeline import get_video_pipeline
 
@@ -73,7 +74,7 @@ app.include_router(routes_pairing.router)
 app.include_router(routes_settings.router)
 app.include_router(routes_ws.router)
 
-FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+FRONTEND_DIST = frontend_dist_dir()
 
 
 @app.get("/")
