@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -16,6 +16,7 @@ from app.schemas.api import (
     PairingClaim,
     PairingClaimOut,
     PairingCreateOut,
+    PairingCreateRequest,
     RecordingStatus,
     RemoteCommand,
     RemoteCommandResult,
@@ -55,6 +56,7 @@ def _status() -> RecordingStatus:
 )
 def create_pairing(
     request: Request,
+    payload: PairingCreateRequest = Body(default_factory=PairingCreateRequest),
     session: ProcedureSession = Depends(load_session),
     db: Session = Depends(get_db),
     pairing: PairingService = Depends(get_pairing),
@@ -63,8 +65,12 @@ def create_pairing(
     host = request.headers.get("x-forwarded-host") or request.headers.get("host")
     scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
     # Mobile cannot use localhost — use host as provided by the desktop browser
-    base = f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
-    _row, token, url = pairing.create_pairing(db, session, base_url=base)
+    local_base = f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
+    # UI may be on Cloudflare; clinical commands always target the local/LAN service.
+    ui_base = (payload.ui_base_url or local_base).rstrip("/")
+    service_base = (payload.service_base_url or local_base).rstrip("/")
+    _row, token, _ = pairing.create_pairing(db, session, base_url=ui_base)
+    url = pairing.build_remote_url(ui_base, token, service_base_url=service_base)
     return PairingCreateOut(
         pairing_url=url,
         token=token,

@@ -1,3 +1,5 @@
+import { getServiceBaseUrl, getUiBaseUrl, serviceUrl } from '@/lib/runtime'
+
 export type Patient = {
   id?: number
   first_name: string
@@ -134,13 +136,35 @@ export type PairingCreate = {
   qr_payload: string
 }
 
+function absolutizeMedia(path: string): string {
+  if (!path) return path
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return serviceUrl(path)
+}
+
+function mapSnapshot(snap: Snapshot): Snapshot {
+  return {
+    ...snap,
+    thumbnail_url: absolutizeMedia(snap.thumbnail_url),
+    image_url: absolutizeMedia(snap.image_url),
+  }
+}
+
+function mapReport(report: Report): Report {
+  return {
+    ...report,
+    download_url: absolutizeMedia(report.download_url),
+    preview_url: absolutizeMedia(report.preview_url),
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has('Content-Type') && init?.body) {
     headers.set('Content-Type', 'application/json')
   }
   headers.set('X-Desktop-Token', 'local-desktop-dev-token')
-  const res = await fetch(path, { ...init, headers })
+  const res = await fetch(serviceUrl(path), { ...init, headers })
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -181,20 +205,33 @@ export const api = {
   recordingStatus: (id: string) =>
     request<RecordingStatus>(`/api/sessions/${id}/recording/status`),
   takeSnapshot: (id: string) =>
-    request<Snapshot>(`/api/sessions/${id}/snapshots`, { method: 'POST' }),
-  snapshots: (id: string) => request<Snapshot[]>(`/api/sessions/${id}/snapshots`),
+    request<Snapshot>(`/api/sessions/${id}/snapshots`, { method: 'POST' }).then(mapSnapshot),
+  snapshots: (id: string) =>
+    request<Snapshot[]>(`/api/sessions/${id}/snapshots`).then((rows) => rows.map(mapSnapshot)),
   updateSnapshot: (id: number, body: unknown) =>
-    request<Snapshot>(`/api/snapshots/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<Snapshot>(`/api/snapshots/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then(
+      mapSnapshot,
+    ),
   bulkSelection: (sessionId: string, body: unknown) =>
     request<Snapshot[]>(`/api/sessions/${sessionId}/snapshots/selection`, {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }).then((rows) => rows.map(mapSnapshot)),
   createReport: (id: string, body: unknown) =>
-    request<Report>(`/api/sessions/${id}/reports`, { method: 'POST', body: JSON.stringify(body) }),
-  reports: (id: string) => request<Report[]>(`/api/sessions/${id}/reports`),
+    request<Report>(`/api/sessions/${id}/reports`, { method: 'POST', body: JSON.stringify(body) }).then(
+      mapReport,
+    ),
+  reports: (id: string) =>
+    request<Report[]>(`/api/sessions/${id}/reports`).then((rows) => rows.map(mapReport)),
   createPairing: (id: string) =>
-    request<PairingCreate>(`/api/sessions/${id}/pairing`, { method: 'POST' }),
+    request<PairingCreate>(`/api/sessions/${id}/pairing`, {
+      method: 'POST',
+      body: JSON.stringify({
+        // UI may be on Cloudflare; service stays on the workstation / LAN.
+        ui_base_url: getUiBaseUrl(),
+        service_base_url: getServiceBaseUrl() || undefined,
+      }),
+    }),
   revokePairing: (id: string) =>
     request<{ revoked: number }>(`/api/pairing/revoke?session_id=${encodeURIComponent(id)}`, {
       method: 'POST',

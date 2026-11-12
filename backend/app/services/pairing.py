@@ -45,6 +45,15 @@ class PairingService:
         pairing_url = f"{base_url.rstrip('/')}/remote/{token}"
         return pairing, token, pairing_url
 
+    @staticmethod
+    def build_remote_url(ui_base_url: str, token: str, service_base_url: str | None = None) -> str:
+        from urllib.parse import urlencode
+
+        base = f"{ui_base_url.rstrip('/')}/remote/{token}"
+        if not service_base_url:
+            return base
+        return f"{base}?{urlencode({'service': service_base_url.rstrip('/')})}"
+
     def claim(
         self,
         db: Session,

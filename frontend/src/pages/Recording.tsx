@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Camera, Images, Square, Circle } from 'lucide-react'
 import { api } from '@/lib/api'
+import { serviceUrl } from '@/lib/runtime'
 import { formatDuration } from '@/lib/utils'
 import { Badge, Button, Card, PageHeader, Select, StatusDot } from '@/components/ui'
 
@@ -93,7 +94,7 @@ export function Recording() {
         <Card className="overflow-hidden animate-fade-up">
           <div className="relative aspect-video bg-slate-900">
             <img
-              src={`/api/sessions/${sessionId}/preview.mjpg`}
+              src={serviceUrl(`/api/sessions/${sessionId}/preview.mjpg`)}
               alt="Live endoscopy preview"
               className="h-full w-full object-contain"
             />

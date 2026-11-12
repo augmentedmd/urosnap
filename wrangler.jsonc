@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the Cloudflare Workers Builds / dashboard Worker name.
+  "name": "urosnap",
+  "main": "cloudflare/src/index.ts",
+  "compatibility_date": "2026-11-12",
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "assets": {
+    // Produced by `npm run build` (frontend Vite build).
+    "directory": "frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/ws/*",
+      "/docs",
+      "/docs/*",
+      "/openapi.json",
+      "/redoc",
+      "/opensnap.json"
+    ]
+  }
+}

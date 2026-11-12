@@ -198,6 +198,13 @@ class ReportOut(BaseModel):
     preview_url: str
 
 
+class PairingCreateRequest(BaseModel):
+    """Optional UI/service bases when the SPA is hosted separately (e.g. Cloudflare)."""
+
+    ui_base_url: Optional[str] = None
+    service_base_url: Optional[str] = None
+
+
 class PairingCreateOut(BaseModel):
     pairing_url: str
     token: str
