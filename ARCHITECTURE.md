@@ -5,26 +5,34 @@ Local-first, browser-based urology video capture and procedure reporting system.
 ## Components
 
 ```
-┌─────────────────────┐     localhost      ┌──────────────────────────────┐
-│  Desktop Browser    │◄──────────────────►│  Local Recording Service     │
-│  (React SPA)        │   REST + WebSocket │  (Python / FastAPI)          │
-│                     │                    │                              │
-│  Dashboard          │                    │  • Video acquisition         │
-│  New Session        │                    │  • Recording engine          │
-│  Active Recording   │                    │  • Snapshot scheduler        │
-│  Image Gallery      │                    │  • PDF generation            │
-│  Report Generator   │                    │  • SQLite + local storage    │
-│  Previous Sessions  │                    │  • Pairing / auth            │
-│  Settings           │                    └──────────────┬───────────────┘
-└─────────────────────┘                                   │
-                                                          │ LAN HTTPS + WSS
-┌─────────────────────┐                                   │ (control only)
-│  iPhone Safari      │◄──────────────────────────────────┘
-│  Remote Control     │
-│  Start / Stop / Snap│
-│  Status only        │
+┌──────────────────────┐
+│ Cloudflare Worker    │  optional: static UI shell only (no PHI/media)
+│ opensnap-ui          │
+└──────────┬───────────┘
+           │ loads SPA assets
+           ▼
+┌─────────────────────┐   browser → local service   ┌──────────────────────────────┐
+│  Desktop Browser    │◄───────────────────────────►│  Local Recording Service     │
+│  (React SPA)        │   REST / MJPEG / WebSocket  │  (Python / FastAPI)          │
+│                     │   never via Cloudflare      │                              │
+│  Dashboard          │                             │  • Video acquisition         │
+│  New Session        │                             │  • Recording engine          │
+│  Active Recording   │                             │  • Snapshot scheduler        │
+│  Image Gallery      │                             │  • PDF generation            │
+│  Report Generator   │                             │  • SQLite + local storage    │
+│  Previous Sessions  │                             │  • Pairing / auth            │
+│  Settings           │                             └──────────────┬───────────────┘
+└─────────────────────┘                                            │
+                                                                   │ LAN (control only)
+┌─────────────────────┐                                            │
+│  iPhone Safari      │◄───────────────────────────────────────────┘
+│  Remote Control     │  QR may open Cloudflare UI shell with
+│  Start / Stop / Snap│  ?service=http://workstation-lan:8000
+│  Status only        │  Commands hit the local service directly
 └─────────────────────┘
 ```
+
+See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) for the Cloudflare UI-shell deployment model.
 
 ## Data flow
 

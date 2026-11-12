@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "opensnap-ui",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-12",
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "assets": {
+    // Built by: cd ../frontend && npm run build
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Intercept clinical-looking paths so Cloudflare never pretends to be the API.
+    "run_worker_first": ["/api/*", "/ws/*", "/docs", "/docs/*", "/openapi.json", "/redoc", "/opensnap.json"]
+  }
+}

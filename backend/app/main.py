@@ -51,10 +51,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Cloudflare may host the static UI on a different origin. Clinical payloads
+# still go browser → local service directly (never through Cloudflare).
+# Credentials are not used; the desktop token is an explicit header.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

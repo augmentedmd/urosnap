@@ -16,6 +16,10 @@ Three components:
 
 All clinical data stays on the Windows recording computer. No cloud services are required for normal operation.
 
+### Optional Cloudflare UI shell
+
+You may host the **static UI only** on Cloudflare Workers. Processing still runs entirely on the local service — Cloudflare never sees PHI, video, photos, or PDFs. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+
 ## Quick start (development)
 
 ### Prerequisites

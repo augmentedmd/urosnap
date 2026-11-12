@@ -6,6 +6,7 @@
 
 - [ ] All patient data, media, and reports remain on the Windows recording computer
 - [ ] No cloud storage, external databases, telemetry, or third-party APIs in the runtime path
+- [ ] If Cloudflare hosts the UI shell, confirm it serves assets only (no API proxy, no Tunnel for PHI/media)
 - [ ] Storage directory encrypted with institution-approved mechanism (e.g., BitLocker)
 - [ ] NTFS ACLs restrict session directories and SQLite DB to authorized accounts
 

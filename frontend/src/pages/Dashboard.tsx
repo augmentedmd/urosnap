@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, HardDrive, Plus, Video } from 'lucide-react'
 import { api } from '@/lib/api'
+import { getServiceBaseUrl, isSameOriginService } from '@/lib/runtime'
 import { formatBytes } from '@/lib/utils'
 import { Badge, Button, Card, PageHeader, StatusDot } from '@/components/ui'
 
@@ -11,12 +12,17 @@ export function Dashboard() {
 
   const h = health.data
   const warnings = h?.warnings ?? []
+  const serviceBase = getServiceBaseUrl() || window.location.origin
 
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle="Recording service status and recent sessions"
+        subtitle={
+          isSameOriginService()
+            ? 'Recording service status and recent sessions'
+            : `UI may be remote; processing is local at ${serviceBase}`
+        }
         actions={
           <Link to="/sessions/new">
             <Button size="lg">
@@ -68,6 +74,22 @@ export function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {health.isError ? (
+        <Card className="mt-4 border-red-200 bg-red-50/80 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-700" />
+            <div>
+              <div className="font-semibold text-red-900">Local recording service unreachable</div>
+              <p className="mt-1 text-sm text-red-900">
+                Start OpenSnap on the Windows workstation (`uvicorn` on port 8000), then confirm the
+                local service URL in Settings. Cloudflare only hosts the UI shell — it cannot process
+                video or patient data.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {warnings.length > 0 ? (
         <Card className="mt-4 border-amber-200 bg-amber-50/80 p-4">

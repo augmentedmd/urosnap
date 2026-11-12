@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, type Settings as SettingsType } from '@/lib/api'
+import {
+  getServiceBaseUrl,
+  getUiBaseUrl,
+  setStoredServiceUrl,
+  setStoredUiBaseUrl,
+} from '@/lib/runtime'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
 
 const empty: SettingsType = {
@@ -26,10 +32,17 @@ export function SettingsPage() {
   const devices = useQuery({ queryKey: ['devices'], queryFn: api.devices })
   const procedures = useQuery({ queryKey: ['procedures'], queryFn: api.procedureTypes })
   const [form, setForm] = useState<SettingsType>(empty)
+  const [serviceUrlInput, setServiceUrlInput] = useState('')
+  const [uiBaseInput, setUiBaseInput] = useState('')
 
   useEffect(() => {
     if (settings.data) setForm(settings.data)
   }, [settings.data])
+
+  useEffect(() => {
+    setServiceUrlInput(getServiceBaseUrl())
+    setUiBaseInput(getUiBaseUrl())
+  }, [])
 
   const save = useMutation({
     mutationFn: () => api.updateSettings(form),
@@ -40,6 +53,48 @@ export function SettingsPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Settings" subtitle="Physician preferences, practice letterhead, and local storage." />
       <div className="space-y-5 animate-fade-up">
+        <Card className="space-y-4 p-5">
+          <h2 className="text-lg font-semibold">Local processing connection</h2>
+          <p className="text-xs text-[var(--color-muted)]">
+            Cloudflare may host only the OpenSnap UI shell. Video, snapshots, patient data, and PDFs
+            always stay on the local Windows recording service. Do not point these URLs at Cloudflare.
+          </p>
+          <Field
+            label="Local recording service URL"
+            hint="Used by this browser for all API and media calls. Example: http://127.0.0.1:8000 or http://192.168.1.20:8000"
+          >
+            <Input
+              value={serviceUrlInput}
+              placeholder="http://127.0.0.1:8000"
+              onChange={(e) => setServiceUrlInput(e.target.value)}
+            />
+          </Field>
+          <Field
+            label="Public UI base URL (optional)"
+            hint="Cloudflare Worker/Pages origin used inside iPhone QR links. Remote commands still go to the local service."
+          >
+            <Input
+              value={uiBaseInput}
+              placeholder="https://opensnap.example.workers.dev"
+              onChange={(e) => setUiBaseInput(e.target.value)}
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setStoredServiceUrl(serviceUrlInput)
+                setStoredUiBaseUrl(uiBaseInput)
+                qc.invalidateQueries()
+                window.location.reload()
+              }}
+            >
+              Save connection
+            </Button>
+          </div>
+        </Card>
+
         <Card className="space-y-4 p-5">
           <h2 className="text-lg font-semibold">Practice information</h2>
           <p className="text-xs text-[var(--color-muted)]">
