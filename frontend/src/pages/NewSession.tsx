@@ -52,12 +52,13 @@ export function NewSession() {
       const preferredId = settings.data?.preferred_capture_device_id || ''
       const preferred = devices.data?.find((d) => d.id === preferredId && d.available)
       const firstCamera = devices.data?.find((d) => d.source_type === 'camera' && d.available)
-      // Prefer a real capture device when present; synthetic is only the fallback.
+      // Prefer saved preference, else first real camera, else synthetic.
+      // User can always switch to a camera in the dropdown once Windows exposes it.
       const chosen =
         preferred ||
         firstCamera ||
-        devices.data?.find((d) => d.id === (settings.data?.default_capture_source || 'synthetic')) ||
-        devices.data?.find((d) => d.id === 'synthetic')
+        devices.data?.find((d) => d.id === 'synthetic') ||
+        devices.data?.[0]
 
       return {
         ...f,

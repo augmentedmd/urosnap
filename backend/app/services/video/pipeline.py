@@ -318,6 +318,7 @@ class VideoPipeline:
             width, height = parse_resolution(self._config.resolution)
             next_frame_due = time.monotonic()
             last_record_write = 0.0
+            consecutive_misses = 0
 
             while not self._stop_event.is_set():
                 now = time.monotonic()
@@ -329,14 +330,37 @@ class VideoPipeline:
 
                 frame = self._read_frame(cap, source_type, width, height)
                 if frame is None:
+                    consecutive_misses += 1
                     with self._lock:
                         self._state.connected = False
                         # Warning only — never flip session into a hard error that blocks Stop.
                         self._state.warning = "Capture device disconnected; retrying…"
-                    time.sleep(0.2)
+                    # After repeated failures, soft-fallback so preview is never blank.
+                    if source_type == "camera" and consecutive_misses >= 10:
+                        if cap is not None:
+                            try:
+                                cap.release()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            cap = None
+                        source_type = "synthetic"
+                        consecutive_misses = 0
+                        with self._lock:
+                            self._state.connected = True
+                            self._state.error = None
+                            self._state.warning = (
+                                "Camera stopped producing frames; using synthetic preview"
+                            )
+                        continue
+                    time.sleep(0.15)
                     # Attempt reconnect for cameras
-                    if source_type == "camera" and cap is not None:
-                        cap.release()
+                    if source_type == "camera":
+                        if cap is not None:
+                            try:
+                                cap.release()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            cap = None
                         try:
                             cap = open_capture(
                                 source_type, self._config.device_id, self._config.resolution
@@ -345,9 +369,12 @@ class VideoPipeline:
                                 self._state.connected = True
                                 self._state.error = None
                                 self._state.warning = None
+                            consecutive_misses = 0
                         except Exception:  # noqa: BLE001
                             pass
                     continue
+
+                consecutive_misses = 0
 
                 ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
                 with self._lock:
