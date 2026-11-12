@@ -21,7 +21,7 @@ Local-first, browser-based urology video capture and procedure reporting system.
 └─────────────────────┘
 ```
 
-Optional: Cloudflare may still host a **UI shell only** for demos; clinical use should prefer the EXE. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+Cloudflare UI hosting is optional and **not** required for clinical use. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) only if you intentionally want a remote UI shell.
 
 ## Data flow
 

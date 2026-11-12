@@ -2,7 +2,7 @@
   "name": "urosnap",
   "private": true,
   "version": "0.1.0",
-  "description": "OpenSnap — Cloudflare UI shell + local recording service",
+  "description": "OpenSnap — local Windows EXE for urology video capture and reporting",
   "scripts": {
     "build:ui": "npm --prefix frontend ci && npm --prefix frontend run build",
     "build": "npm run build:ui",

@@ -1,4 +1,7 @@
-# OpenSnap on Cloudflare (UI shell only)
+# OpenSnap on Cloudflare (optional UI shell only)
+
+> **Not the normal product path.** Physicians should run **OpenSnap.exe** — see [WINDOWS_EXE.md](WINDOWS_EXE.md) and the root README.  
+> Cloudflare is an optional demo/hosting extra for the static UI. It cannot replace the Windows recorder.
 
 OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets while keeping **all clinical processing local** on the Windows recording computer.
 
