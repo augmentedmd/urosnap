@@ -415,7 +415,7 @@ class VideoPipeline:
                     and source_type == "synthetic"
                     and time.monotonic() >= next_camera_retry
                 ):
-                    next_camera_retry = time.monotonic() + 2.0
+                    next_camera_retry = time.monotonic() + 4.0
                     try:
                         candidate = open_capture_quick(device_id, resolution)
                         probe = self._read_frame(candidate, "camera", width, height)

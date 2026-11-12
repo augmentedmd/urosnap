@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 import time
-from typing import Optional
+from typing import Iterator, Optional
 
 import cv2
 
@@ -53,14 +53,26 @@ def _default_backends() -> list[tuple[int, str]]:
     return [(cv2.CAP_ANY, "Auto")]
 
 
-def _open_attempts(index: int, backend: int) -> list[cv2.VideoCapture]:
-    """Try both OpenCV open styles used on Windows."""
-    attempts: list[cv2.VideoCapture] = []
-    attempts.append(cv2.VideoCapture(index, backend))
+def _open_attempts(index: int, backend: int) -> Iterator[cv2.VideoCapture]:
+    """Try both OpenCV open styles used on Windows, one handle at a time.
+
+    Must be lazy: opening both forms at once leaves a second handle holding the
+    device, after which DirectShow opens succeed but never deliver frames.
+    """
+    yield cv2.VideoCapture(index, backend)
     # Legacy combined form: VideoCapture(index + CAP_DSHOW)
     if backend not in (0, getattr(cv2, "CAP_ANY", 0)):
-        attempts.append(cv2.VideoCapture(index + backend))
-    return attempts
+        yield cv2.VideoCapture(index + backend)
+
+
+def _warm_read(cap: cv2.VideoCapture, tries: int = 20, delay: float = 0.05):
+    """DirectShow capture cards often return no frame for the first reads after open."""
+    for _ in range(tries):
+        ok, frame = cap.read()
+        if ok and frame is not None:
+            return frame
+        time.sleep(delay)
+    return None
 
 
 def _probe_camera(index: int, backend: int, backend_name: str) -> Optional[CaptureDevice]:
@@ -69,8 +81,8 @@ def _probe_camera(index: int, backend: int, backend_name: str) -> Optional[Captu
             if not cap.isOpened():
                 cap.release()
                 continue
-            ok, frame = cap.read()
-            if not ok or frame is None:
+            frame = _warm_read(cap, tries=10)
+            if frame is None:
                 cap.release()
                 continue
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or frame.shape[1] or 640)
@@ -198,7 +210,6 @@ def open_capture(
     resolution: str,
 ) -> cv2.VideoCapture:
     settings = get_settings()
-    width, height = parse_resolution(resolution)
 
     if source_type == "synthetic":
         return cv2.VideoCapture()
@@ -230,13 +241,10 @@ def open_capture(
                     cap.release()
                     last_error = f"{backend_name} could not open index {index}"
                     continue
-                ok, _frame = cap.read()
-                if not ok:
+                if _warm_read(cap) is None:
                     cap.release()
                     last_error = f"{backend_name} opened index {index} but produced no frames"
                     continue
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                 _index_backends[index] = backend
                 logger.info(
                     "Opened camera:%s with %s (attempt %s)", index, backend_name, attempt + 1
@@ -260,7 +268,6 @@ def open_capture_quick(
     Used for reconnect / upgrade so a hung MSMF/DirectShow read cannot stall
     the preview thread for seconds. Caller must invoke this on the acquisition thread.
     """
-    width, height = parse_resolution(resolution)
     index = 0
     if device_id and device_id.startswith("camera:"):
         index = int(device_id.split(":", 1)[1])
@@ -272,23 +279,22 @@ def open_capture_quick(
     if preferred is not None:
         preferred_name = next((n for b, n in backends if b == preferred), "Preferred")
         backends = [(preferred, preferred_name)] + [(b, n) for b, n in backends if b != preferred]
-    # Only try the first backend (preferred / DirectShow) once.
-    backends = backends[:1]
+    # Real camera backends only; CAP_ANY just re-picks one of these.
+    backends = [(b, n) for b, n in backends if n != "Auto"] or backends
 
     last_error = "unknown"
     for backend, backend_name in backends:
-        for cap in _open_attempts(index, backend)[:1]:
+        for cap in _open_attempts(index, backend):
             if not cap.isOpened():
                 cap.release()
                 last_error = f"{backend_name} could not open index {index}"
                 continue
-            ok, _frame = cap.read()
-            if not ok:
+            # Do not force a resolution: renegotiating format right after open can make
+            # DirectShow stop delivering frames. The pipeline resizes frames instead.
+            if _warm_read(cap) is None:
                 cap.release()
                 last_error = f"{backend_name} opened index {index} but produced no frames"
                 continue
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             _index_backends[index] = backend
             logger.info("Quick-opened camera:%s with %s", index, backend_name)
             return cap
