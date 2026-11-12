@@ -118,6 +118,8 @@ export type Health = {
   active_session_id?: string | null
   recording_state: string
   capture: CaptureStatus
+  cameras_detected?: number
+  camera_names?: string[]
   warnings: string[]
 }
 
