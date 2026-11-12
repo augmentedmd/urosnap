@@ -1,0 +1,88 @@
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/500.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/source-sans-3/700.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/700.css";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans", "Source Sans 3", sans-serif;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #dbe3ee;
+  --color-panel: #ffffff;
+  --color-canvas: #eef3f8;
+  --color-canvas-deep: #d9e5f2;
+  --color-brand: #0b4f7a;
+  --color-brand-soft: #e8f2f9;
+  --color-accent: #1d6fa5;
+  --color-danger: #b91c1c;
+  --color-ok: #047857;
+  --color-warn: #b45309;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #d7e8f7 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #cfe0ef 0%, transparent 50%),
+      linear-gradient(180deg, var(--color-canvas) 0%, var(--color-canvas-deep) 100%);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@keyframes pulse-rec {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+.rec-dot {
+  animation: pulse-rec 1.1s ease-in-out infinite;
+}
