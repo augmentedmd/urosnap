@@ -32,6 +32,12 @@ export function isSameOriginService(): boolean {
   }
 }
 
+/** True when UI is hosted away from the Windows recorder (e.g. Cloudflare). */
+export function isRemoteUiShell(): boolean {
+  if (typeof window === 'undefined') return false
+  return !isLoopbackHost(window.location.hostname)
+}
+
 export function getStoredServiceUrl(): string {
   if (typeof window === 'undefined') return ''
   const fromQuery = new URLSearchParams(window.location.search).get('service')

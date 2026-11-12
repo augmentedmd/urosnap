@@ -158,18 +158,23 @@ class PdfReportGenerator:
         story.append(Spacer(1, 6))
 
         patient = session.patient
+        patient_name = (
+            f"{patient.last_name}, {patient.first_name}".strip(", ").strip() or "Unnamed patient"
+        )
+        dob = patient.date_of_birth
+        dob_text = "—" if dob is None or dob.year <= 1900 else dob.isoformat()
         demo_data = [
-            ["Patient Name", f"{patient.last_name}, {patient.first_name}"],
-            ["Date of Birth", patient.date_of_birth.isoformat()],
-            ["Medical Record Number", patient.medical_record_number],
+            ["Patient Name", patient_name],
+            ["Date of Birth", dob_text],
+            ["Medical Record Number", patient.medical_record_number or "—"],
             ["Procedure", session.display_procedure_name],
             ["Procedure Date", session.procedure_date.isoformat()],
             [
                 "Procedure Time",
                 session.procedure_time.strftime("%H:%M") if session.procedure_time else "—",
             ],
-            ["Location", session.location],
-            ["Performing Urologist", session.physician],
+            ["Location", session.location or "—"],
+            ["Performing Urologist", session.physician or "—"],
         ]
         table = Table(demo_data, colWidths=[2.2 * inch, 4.5 * inch])
         table.setStyle(

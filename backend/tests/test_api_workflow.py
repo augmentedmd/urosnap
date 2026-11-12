@@ -49,10 +49,19 @@ def test_procedure_types_seeded(client):
     assert "Other / Custom Procedure" in names
 
 
-def test_session_validation_custom_required(client):
+def test_session_custom_name_optional(client):
     payload = _session_payload(procedure_type="Other / Custom Procedure", custom_procedure_name="")
     res = client.post("/api/sessions", json=payload)
-    assert res.status_code == 400
+    assert res.status_code == 200
+    assert res.json()["display_procedure_name"] == "Other / Custom Procedure"
+
+
+def test_session_all_fields_optional(client):
+    res = client.post("/api/sessions", json={})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["patient_name"] == "Unnamed patient"
+    assert body["status"] in {"ready", "created"}
 
 
 def test_custom_procedure_saved(client):
@@ -273,3 +282,21 @@ def test_previous_session_search(client):
     assert any("Demo" in s["patient_name"] for s in res.json())
     res2 = client.get("/api/sessions", params={"procedure_type": "Prostate biopsy"})
     assert all(s["procedure_type"] == "Prostate biopsy" for s in res2.json())
+
+
+def test_storage_browse_and_set(client, tmp_path):
+    browse = client.get("/api/settings/storage/browse")
+    assert browse.status_code == 200
+    body = browse.json()
+    assert "current" in body
+    assert "directories" in body
+
+    target = tmp_path / "opensnap_media"
+    target.mkdir()
+    patched = client.patch("/api/settings", json={"storage_path": str(target)})
+    assert patched.status_code == 200
+    assert patched.json()["storage_path"] == str(target.resolve())
+
+    created = client.post("/api/sessions", json={})
+    assert created.status_code == 200
+    assert str(target) in created.json()["storage_path"]

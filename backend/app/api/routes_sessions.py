@@ -12,6 +12,7 @@ from app.api.deps import get_sessions, load_session, require_desktop_auth
 from app.database import get_db
 from app.models.entities import ProcedureSession, ProcedureType, Snapshot
 from app.schemas.api import (
+    PatientOut,
     RecordingStatus,
     ReportCreate,
     ReportOut,
@@ -44,9 +45,23 @@ def _summary(session: ProcedureSession) -> SessionSummary:
         created_at=session.created_at,
         recording_start_time=session.recording_start_time,
         recording_stop_time=session.recording_stop_time,
-        patient_name=f"{session.patient.last_name}, {session.patient.first_name}",
-        medical_record_number=session.patient.medical_record_number,
+        patient_name=(
+            f"{session.patient.last_name}, {session.patient.first_name}".strip(", ").strip()
+            or "Unnamed patient"
+        ),
+        medical_record_number=session.patient.medical_record_number or "—",
         snapshot_count=len(session.snapshots) if session.snapshots is not None else 0,
+    )
+
+
+def _patient_out(patient) -> PatientOut:
+    dob = patient.date_of_birth
+    return PatientOut(
+        id=patient.id,
+        first_name=patient.first_name or "",
+        last_name=patient.last_name or "",
+        date_of_birth=None if dob is None or getattr(dob, "year", 1901) <= 1900 else dob,
+        medical_record_number=patient.medical_record_number or "",
     )
 
 
@@ -62,7 +77,7 @@ def _detail(session: ProcedureSession) -> SessionDetail:
         snapshot_interval_sec=session.snapshot_interval_sec,
         images_per_page=session.images_per_page,
         storage_path=session.storage_path,
-        patient=session.patient,
+        patient=_patient_out(session.patient),
     )
 
 
@@ -291,9 +306,30 @@ def snapshot_thumbnail(
     return FileResponse(path, media_type="image/jpeg")
 
 
+@router.get("/sessions/{session_id}/preview.jpg")
+def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
+    """Single JPEG frame for cross-origin UI shells (Cloudflare → local service)."""
+    pipeline = get_video_pipeline()
+    # Ensure pipeline is bound to this session's directories when idle.
+    from app.services.sessions import get_session_service
+
+    get_session_service().attach_session_for_review(session)
+    frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=1.5)
+    if frame is None:
+        raise HTTPException(status_code=503, detail="No preview frame yet")
+    return Response(
+        content=frame,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
+
+
 @router.get("/sessions/{session_id}/preview.mjpg")
 def preview_stream(session: ProcedureSession = Depends(load_session)) -> StreamingResponse:
     pipeline = get_video_pipeline()
+    from app.services.sessions import get_session_service
+
+    get_session_service().attach_session_for_review(session)
 
     def gen():
         while True:

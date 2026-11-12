@@ -30,7 +30,7 @@ export function NewSession() {
     custom_procedure_name: '',
     save_custom_procedure: false,
     physician: '',
-    location: 'Procedure Room',
+    location: '',
     procedure_date: todayISO(),
     procedure_time: nowTime(),
     capture_source: 'synthetic',
@@ -75,7 +75,7 @@ export function NewSession() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="New Session"
-        subtitle="Enter patient information and recording settings. Demographics are never carried into the next session."
+        subtitle="All fields are optional. Demographics are never carried into the next session."
       />
 
       <form
@@ -87,15 +87,15 @@ export function NewSession() {
             patient: {
               first_name: form.first_name,
               last_name: form.last_name,
-              date_of_birth: form.date_of_birth,
+              date_of_birth: form.date_of_birth || null,
               medical_record_number: form.medical_record_number,
             },
-            procedure_type: form.procedure_type,
-            custom_procedure_name: isCustom ? form.custom_procedure_name : null,
+            procedure_type: form.procedure_type || 'Diagnostic cystoscopy',
+            custom_procedure_name: isCustom ? form.custom_procedure_name || null : null,
             save_custom_procedure: isCustom && form.save_custom_procedure,
             physician: form.physician,
             location: form.location,
-            procedure_date: form.procedure_date,
+            procedure_date: form.procedure_date || todayISO(),
             procedure_time: form.procedure_time ? `${form.procedure_time}:00` : null,
             capture_source: device?.source_type || form.capture_source,
             capture_device_id: form.capture_device_id,
@@ -111,21 +111,18 @@ export function NewSession() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="First name">
               <Input
-                required
                 value={form.first_name}
                 onChange={(e) => setForm({ ...form, first_name: e.target.value })}
               />
             </Field>
             <Field label="Last name">
               <Input
-                required
                 value={form.last_name}
                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
               />
             </Field>
             <Field label="Date of birth">
               <Input
-                required
                 type="date"
                 value={form.date_of_birth}
                 onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
@@ -133,7 +130,6 @@ export function NewSession() {
             </Field>
             <Field label="Medical record number">
               <Input
-                required
                 value={form.medical_record_number}
                 onChange={(e) => setForm({ ...form, medical_record_number: e.target.value })}
               />
@@ -159,14 +155,12 @@ export function NewSession() {
             </Field>
             <Field label="Performing urologist">
               <Input
-                required
                 value={form.physician}
                 onChange={(e) => setForm({ ...form, physician: e.target.value })}
               />
             </Field>
             <Field label="Procedure date">
               <Input
-                required
                 type="date"
                 value={form.procedure_date}
                 onChange={(e) => setForm({ ...form, procedure_date: e.target.value })}
@@ -181,7 +175,6 @@ export function NewSession() {
             </Field>
             <Field label="Location">
               <Input
-                required
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
@@ -191,7 +184,6 @@ export function NewSession() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Custom procedure name">
                 <Input
-                  required
                   value={form.custom_procedure_name}
                   onChange={(e) => setForm({ ...form, custom_procedure_name: e.target.value })}
                 />

@@ -83,6 +83,8 @@ Browsers treat Cloudflare (`https://…workers.dev`) as a public site and `http:
 - Allow the browser’s local-network permission prompt
 - Or skip Cloudflare for clinical use and open `http://127.0.0.1:8000` (local UI + local API, fully offline)
 
+The remote UI shell blocks clinical screens until `/api/health` succeeds against the local service. Live preview uses authenticated JPEG polling (`/api/sessions/{id}/preview.jpg`) instead of a cross-origin MJPEG `<img>`, which browsers often block from HTTPS pages.
+
 ## iPhone remote with Cloudflare UI
 
 QR links look like:

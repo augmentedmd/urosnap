@@ -11,25 +11,34 @@ SNAPSHOT_PRESETS = {1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 30.0, 60.0}
 
 
 class PatientCreate(BaseModel):
-    first_name: str = Field(min_length=1, max_length=100)
-    last_name: str = Field(min_length=1, max_length=100)
-    date_of_birth: date
-    medical_record_number: str = Field(min_length=1, max_length=64)
+    """All demographics are optional at session start."""
+
+    first_name: str = Field(default="", max_length=100)
+    last_name: str = Field(default="", max_length=100)
+    date_of_birth: Optional[date] = None
+    medical_record_number: str = Field(default="", max_length=64)
 
 
-class PatientOut(PatientCreate):
+class PatientOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: int
+    first_name: str
+    last_name: str
+    date_of_birth: Optional[date] = None
+    medical_record_number: str
 
 
 class SessionCreate(BaseModel):
-    patient: PatientCreate
-    procedure_type: str = Field(min_length=1, max_length=200)
+    """Session fields are optional; defaults fill any blanks for recording."""
+
+    patient: PatientCreate = Field(default_factory=PatientCreate)
+    procedure_type: str = Field(default="Diagnostic cystoscopy", max_length=200)
     custom_procedure_name: Optional[str] = Field(default=None, max_length=200)
     save_custom_procedure: bool = False
-    physician: str = Field(min_length=1, max_length=200)
-    location: str = Field(min_length=1, max_length=200)
-    procedure_date: date
+    physician: str = Field(default="", max_length=200)
+    location: str = Field(default="", max_length=200)
+    procedure_date: Optional[date] = None
     procedure_time: Optional[time] = None
     capture_source: str = "synthetic"
     capture_device_id: Optional[str] = None
@@ -290,3 +299,13 @@ class SettingsUpdate(BaseModel):
     preferred_procedure_type: Optional[str] = None
     preferred_capture_device_id: Optional[str] = None
     pairing_token_ttl_seconds: Optional[int] = None
+    storage_path: Optional[str] = None
+
+
+class StorageBrowseOut(BaseModel):
+    current: str
+    parent: Optional[str] = None
+    directories: list[str] = Field(default_factory=list)
+    drives: list[str] = Field(default_factory=list)
+    writable: bool = False
+    exists: bool = True

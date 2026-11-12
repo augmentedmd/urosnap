@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { api, type Settings as SettingsType } from '@/lib/api'
+import { FolderOpen } from 'lucide-react'
+import { api, type Settings as SettingsType, type StorageBrowse } from '@/lib/api'
 import {
   getServiceBaseUrl,
   getUiBaseUrl,
@@ -36,10 +37,28 @@ export function SettingsPage() {
   const [uiBaseInput, setUiBaseInput] = useState('')
   const [probeMessage, setProbeMessage] = useState<string | null>(null)
   const [probeOk, setProbeOk] = useState<boolean | null>(null)
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [browse, setBrowse] = useState<StorageBrowse | null>(null)
+  const [browseError, setBrowseError] = useState<string | null>(null)
+  const [browseLoading, setBrowseLoading] = useState(false)
 
   useEffect(() => {
     if (settings.data) setForm(settings.data)
   }, [settings.data])
+
+  const openFolderBrowser = async (path?: string) => {
+    setBrowserOpen(true)
+    setBrowseLoading(true)
+    setBrowseError(null)
+    try {
+      const result = await api.browseStorage(path)
+      setBrowse(result)
+    } catch (err) {
+      setBrowseError((err as Error).message)
+    } finally {
+      setBrowseLoading(false)
+    }
+  }
 
   useEffect(() => {
     setServiceUrlInput(getServiceBaseUrl())
@@ -242,9 +261,96 @@ export function SettingsPage() {
 
         <Card className="space-y-4 p-5">
           <h2 className="text-lg font-semibold">Local storage & mobile</h2>
-          <Field label="Storage directory">
-            <Input value={form.storage_path} readOnly />
+          <Field
+            label="Save sessions to folder"
+            hint="Browse folders on the Windows recording PC. Session video, snapshots, and PDFs are stored here."
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={form.storage_path}
+                onChange={(e) => setForm({ ...form, storage_path: e.target.value })}
+                placeholder="C:\\OpenSnap\\data\\opensnap_sessions"
+              />
+              <Button type="button" variant="outline" onClick={() => void openFolderBrowser(form.storage_path || undefined)}>
+                <FolderOpen className="h-4 w-4" />
+                Browse
+              </Button>
+            </div>
           </Field>
+          {browserOpen ? (
+            <div className="rounded-lg border border-[var(--color-line)] bg-slate-50 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-semibold">Choose a folder</div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!browse?.parent || browseLoading}
+                    onClick={() => void openFolderBrowser(browse?.parent || undefined)}
+                  >
+                    Up
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!browse?.current || browseLoading}
+                    onClick={() => {
+                      if (browse?.current) {
+                        setForm({ ...form, storage_path: browse.current })
+                        setBrowserOpen(false)
+                      }
+                    }}
+                  >
+                    Use this folder
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setBrowserOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+              <div className="mb-2 break-all text-xs text-[var(--color-muted)]">
+                {browseLoading ? 'Loading…' : browse?.current || '—'}
+                {browse && !browse.writable ? ' (not writable)' : ''}
+              </div>
+              {browseError ? <div className="mb-2 text-sm text-red-700">{browseError}</div> : null}
+              {browse?.drives?.length ? (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {browse.drives.map((drive) => (
+                    <Button
+                      key={drive}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void openFolderBrowser(drive)}
+                    >
+                      {drive}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              <ul className="max-h-56 overflow-auto rounded-md border border-[var(--color-line)] bg-white">
+                {(browse?.directories ?? []).map((dir) => {
+                  const name = dir.replace(/\\/g, '/').split('/').filter(Boolean).pop() || dir
+                  return (
+                    <li key={dir}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                        onClick={() => void openFolderBrowser(dir)}
+                      >
+                        <FolderOpen className="h-4 w-4 text-[var(--color-muted)]" />
+                        {name}
+                      </button>
+                    </li>
+                  )
+                })}
+                {!browseLoading && (browse?.directories?.length ?? 0) === 0 ? (
+                  <li className="px-3 py-4 text-sm text-[var(--color-muted)]">No subfolders here</li>
+                ) : null}
+              </ul>
+            </div>
+          ) : null}
           <Field label="QR pairing token TTL (seconds)">
             <Input
               type="number"
