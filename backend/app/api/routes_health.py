@@ -8,6 +8,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.schemas.api import HealthOut
 from app.services.storage import StorageManager
+from app.services.video.devices import list_capture_devices
 from app.services.video.pipeline import get_video_pipeline
 
 router = APIRouter(tags=["health"])
@@ -25,6 +26,13 @@ def health(db: Session = Depends(get_db)) -> HealthOut:
     capture = pipeline.capture_status()
     if not capture.connected:
         warnings.append("Capture device not connected")
+    cameras = [d for d in list_capture_devices() if d.source_type == "camera" and d.available]
+    if not cameras:
+        warnings.append(
+            "No USB/webcam capture device detected. Using synthetic video until a camera is available. "
+            "On Windows: Settings → Privacy → Camera → allow desktop apps; check Device Manager; "
+            "close Zoom/Teams/other apps that may lock the device; then refresh."
+        )
     if metrics.get("warning"):
         warnings.append(str(metrics["warning"]))
     if metrics.get("error"):

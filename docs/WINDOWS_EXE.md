@@ -16,7 +16,14 @@ All video, snapshots, patient data, and PDFs stay on that Windows PC under:
 - Starts the local FastAPI recording service
 - Serves the built React UI from the same origin (no separate Vite / Cloudflare needed)
 - Opens the browser automatically
-- Uses synthetic video by default; webcam / capture devices appear when available
+- Prefers a real USB/webcam capture device when Windows exposes one; otherwise uses synthetic video
+
+### If the app says “Synthetic pattern”
+
+1. Confirm the HDMI-to-USB device (or webcam) appears under **Device Manager → Cameras**.
+2. **Windows Settings → Privacy & security → Camera** → enable camera access and **Let desktop apps access your camera**.
+3. Close Zoom / Teams / OBS / other apps that may lock the device.
+4. Fully quit `OpenSnap.exe`, start it again, open **New Session** — you should see `Capture device 0 (DirectShow)` (or similar) and it should be selected automatically.
 
 ## iPhone remote
 

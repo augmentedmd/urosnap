@@ -47,22 +47,31 @@ export function NewSession() {
   )
 
   useEffect(() => {
-    if (!settings.data) return
-    setForm((f) => ({
-      ...f,
-      physician: f.physician || settings.data.preferred_physician || '',
-      procedure_type: settings.data.preferred_procedure_type || f.procedure_type,
-      requested_fps: settings.data.default_fps || f.requested_fps,
-      snapshot_interval_sec: settings.data.default_snapshot_interval_sec || f.snapshot_interval_sec,
-      resolution: settings.data.default_resolution || f.resolution,
-      capture_source: settings.data.default_capture_source || f.capture_source,
-      capture_device_id:
-        settings.data.preferred_capture_device_id ||
-        settings.data.default_capture_source ||
-        f.capture_device_id,
-      images_per_page: settings.data.default_images_per_page || f.images_per_page,
-    }))
-  }, [settings.data])
+    if (!settings.data && !devices.data) return
+    setForm((f) => {
+      const preferredId = settings.data?.preferred_capture_device_id || ''
+      const preferred = devices.data?.find((d) => d.id === preferredId && d.available)
+      const firstCamera = devices.data?.find((d) => d.source_type === 'camera' && d.available)
+      // Prefer a real capture device when present; synthetic is only the fallback.
+      const chosen =
+        preferred ||
+        firstCamera ||
+        devices.data?.find((d) => d.id === (settings.data?.default_capture_source || 'synthetic')) ||
+        devices.data?.find((d) => d.id === 'synthetic')
+
+      return {
+        ...f,
+        physician: f.physician || settings.data?.preferred_physician || '',
+        procedure_type: settings.data?.preferred_procedure_type || f.procedure_type,
+        requested_fps: settings.data?.default_fps || f.requested_fps,
+        snapshot_interval_sec: settings.data?.default_snapshot_interval_sec || f.snapshot_interval_sec,
+        resolution: settings.data?.default_resolution || chosen?.resolutions?.[0] || f.resolution,
+        capture_source: chosen?.source_type || f.capture_source,
+        capture_device_id: chosen?.id || f.capture_device_id,
+        images_per_page: settings.data?.default_images_per_page || f.images_per_page,
+      }
+    })
+  }, [settings.data, devices.data])
 
   const create = useMutation({
     mutationFn: api.createSession,
@@ -203,7 +212,14 @@ export function NewSession() {
         <Card className="space-y-4 p-5">
           <h2 className="text-lg font-semibold">Recording settings</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Capture device">
+            <Field
+              label="Capture device"
+              hint={
+                (devices.data ?? []).some((d) => d.source_type === 'camera' && d.available)
+                  ? 'Real cameras are preferred automatically when Windows exposes them.'
+                  : 'No camera detected yet — synthetic simulator is active. Allow camera access for desktop apps in Windows Privacy settings, then refresh this page.'
+              }
+            >
               <Select
                 value={form.capture_device_id}
                 onChange={(e) => {
@@ -212,6 +228,7 @@ export function NewSession() {
                     ...form,
                     capture_device_id: e.target.value,
                     capture_source: device?.source_type || 'synthetic',
+                    resolution: device?.resolutions?.[0] || form.resolution,
                   })
                 }}
               >
