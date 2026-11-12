@@ -20,6 +20,7 @@ function isLoopbackHost(hostname: string): boolean {
 /** True when the SPA is being served from the same origin as the local API. */
 export function isSameOriginService(): boolean {
   if (typeof window === 'undefined') return true
+  if (isServedByLocalService()) return true
   const configured = getStoredServiceUrl()
   if (!configured) {
     return isLoopbackHost(window.location.hostname)
@@ -38,12 +39,26 @@ export function isRemoteUiShell(): boolean {
   return !isLoopbackHost(window.location.hostname)
 }
 
+/**
+ * True when this page was loaded from the recording service on this PC, so the API
+ * is always same-origin. A saved service URL (e.g. a LAN IP from a QR link opened
+ * on this PC) must not redirect it.
+ */
+function isServedByLocalService(): boolean {
+  return isLoopbackHost(window.location.hostname) && !isRemoteRoute()
+}
+
+function isRemoteRoute(): boolean {
+  return window.location.pathname.startsWith('/remote/')
+}
+
 export function getStoredServiceUrl(): string {
   if (typeof window === 'undefined') return ''
   const fromQuery = new URLSearchParams(window.location.search).get('service')
   if (fromQuery) {
     const normalized = normalizeBase(fromQuery)
-    window.localStorage.setItem(STORAGE_SERVICE, normalized)
+    // Only the phone remote link carries ?service=; don't let it repoint the desktop UI.
+    if (!isRemoteRoute()) window.localStorage.setItem(STORAGE_SERVICE, normalized)
     return normalized
   }
   return window.localStorage.getItem(STORAGE_SERVICE) || ''
@@ -77,6 +92,7 @@ export function setStoredUiBaseUrl(url: string): void {
  * Empty string means same-origin (local FastAPI serving the SPA).
  */
 export function getServiceBaseUrl(): string {
+  if (typeof window !== 'undefined' && isServedByLocalService()) return ''
   const stored = getStoredServiceUrl()
   if (stored) return stored
 

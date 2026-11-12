@@ -1,5 +1,30 @@
+import asyncio
+
+import httpx
+
+from app.main import app
 from app.middleware_lan import lan_path_allowed
 from app.services import network
+
+
+def _get_as(client_ip: str, path: str) -> int:
+    async def go() -> int:
+        transport = httpx.ASGITransport(app=app, client=(client_ip, 50123))
+        async with httpx.AsyncClient(transport=transport, base_url="http://192.168.1.50:8000") as c:
+            return (await c.get(path)).status_code
+
+    return asyncio.run(go())
+
+
+def test_phone_blocked_from_desktop_api_but_reaches_remote(client):
+    assert _get_as("192.168.1.77", "/api/sessions") == 403
+    assert _get_as("192.168.1.77", "/api/settings") == 403
+    assert _get_as("192.168.1.77", "/api/remote/status") == 401
+
+
+def test_pc_using_its_own_lan_ip_is_local(client):
+    assert _get_as("192.168.1.50", "/api/sessions") == 200
+    assert _get_as("127.0.0.1", "/api/sessions") == 200
 
 
 def test_lan_devices_limited_to_remote_paths():

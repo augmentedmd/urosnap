@@ -23,8 +23,16 @@ class LanRemoteOnlyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         client = request.client.host if request.client else None
+        server = request.scope.get("server")
+        server_host = server[0] if server else None
         # "testclient" is Starlette's in-process TestClient, not a network peer.
-        local = client == "testclient" or is_loopback_host(client)
+        # A client address equal to the address it connected to is this same PC
+        # (e.g. the browser opened http://<lan-ip>:8000 on the recording machine).
+        local = (
+            client == "testclient"
+            or is_loopback_host(client)
+            or (client is not None and client == server_host)
+        )
         if not local and not lan_path_allowed(request.url.path):
             return JSONResponse(
                 {"detail": "Only the phone remote is available from other devices"},
