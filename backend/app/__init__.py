@@ -1,3 +1,3 @@
-"""Endoscopy Studio local recording service."""
+"""OpenSnap local recording service."""
 
 __version__ = "0.1.0"

@@ -1,4 +1,4 @@
-# Endoscopy Studio — Implementation Plan
+# OpenSnap — Implementation Plan
 
 ## Phases
 

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 # Isolate test data before app import
 TEST_ROOT = Path(__file__).resolve().parent / "_tmp_data"
 TEST_ROOT.mkdir(parents=True, exist_ok=True)
-os.environ["ENDOSCOPY_DATA_DIR"] = str(TEST_ROOT)
+os.environ["OPENSNAP_DATA_DIR"] = str(TEST_ROOT)
 
 
 @pytest.fixture(autouse=True)

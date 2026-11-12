@@ -1,4 +1,4 @@
-# Endoscopy Studio — Architecture
+# OpenSnap — Architecture
 
 Local-first, browser-based urology video capture and procedure reporting system.
 
@@ -43,14 +43,14 @@ Local-first, browser-based urology video capture and procedure reporting system.
 
 ```
 {storage_root}/
-  endoscopy_sessions/
+  opensnap_sessions/
     session_{YYYYMMDD}_{short_id}/
       video/
       snapshots/
       thumbnails/
       reports/
       metadata/
-  endoscopy_studio.db
+  opensnap.db
 ```
 
 Session directory names never include patient names or MRNs.

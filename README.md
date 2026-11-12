@@ -1,4 +1,4 @@
-# Endoscopy Studio
+# OpenSnap
 
 Local-first, browser-based urology video capture and procedure reporting system.
 
@@ -94,8 +94,8 @@ Default storage root: `./data` (configurable in Settings)
 
 ```
 data/
-  endoscopy_studio.db
-  endoscopy_sessions/
+  opensnap.db
+  opensnap_sessions/
     session_YYYYMMDD_xxxxxx/
       video/
       snapshots/
@@ -110,7 +110,7 @@ Directories use internal session IDs — never patient names or MRNs.
 
 1. Connect the HDMI-to-USB adapter (UVC preferred).
 2. Confirm Windows recognizes it as a camera.
-3. Open Endoscopy Studio → New Session or Settings.
+3. Open the OpenSnap app → New Session or Settings.
 4. Select the device from the capture device list (do not assume index 0).
 5. Choose resolution and recording frame rate; unsupported rates show a warning.
 

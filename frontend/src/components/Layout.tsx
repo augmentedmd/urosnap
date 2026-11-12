@@ -27,7 +27,7 @@ export function Layout() {
             </div>
             <div>
               <div className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
-                Endoscopy Studio
+                OpenSnap
               </div>
               <div className="text-xs text-white/70">Local recording service</div>
             </div>

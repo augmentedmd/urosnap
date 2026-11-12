@@ -83,7 +83,7 @@ export function Remote() {
     <div className="min-h-screen bg-[#0b3a5c] px-4 py-8 text-white">
       <div className="mx-auto flex min-h-[90vh] max-w-md flex-col">
         <header className="mb-8 text-center">
-          <div className="text-sm uppercase tracking-[0.2em] text-white/60">Endoscopy Studio</div>
+          <div className="text-sm uppercase tracking-[0.2em] text-white/60">OpenSnap</div>
           <h1 className="mt-2 text-3xl font-semibold">Remote Control</h1>
           <p className="mt-2 text-sm text-white/70">Recording controls only — no patient data</p>
         </header>
