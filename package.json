@@ -1,0 +1,15 @@
+{
+  "name": "urosnap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OpenSnap — Cloudflare UI shell + local recording service",
+  "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "deploy": "npm run build && wrangler deploy",
+    "dry-run": "npm run build && wrangler deploy --dry-run",
+    "cf:types": "wrangler types"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}

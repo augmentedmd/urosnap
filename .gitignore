@@ -19,6 +19,8 @@ frontend/dist/
 .wrangler/
 .dev.vars*
 cloudflare/.wrangler/
+worker-configuration.d.ts
+!cloudflare/worker-configuration.d.ts
 
 # OS / IDE
 .DS_Store

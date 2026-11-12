@@ -29,17 +29,22 @@ OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets whil
 
 ## Deploy the UI shell
 
-```bash
-cd frontend && npm install && npm run build
-cd ../cloudflare && npm install
-npx wrangler deploy
-```
-
-Or from `cloudflare/`:
+Workers Builds for this repo expects the Worker name **`urosnap`** and a root-level build:
 
 ```bash
+# From repo root (matches Cloudflare Workers Builds defaults)
+npm install
 npm run deploy
 ```
+
+Manual / local packaging:
+
+```bash
+cd frontend && npm install && npm run build
+cd .. && npx wrangler deploy --dry-run
+```
+
+The `cloudflare/` folder holds the Worker script; root `wrangler.jsonc` + `package.json` are the CI entrypoints.
 
 After deploy, open the Worker URL. The dashboard should report the local recording service. If the service is not running, Settings → **Local processing connection** explains how to point at `http://127.0.0.1:8000`.
 
