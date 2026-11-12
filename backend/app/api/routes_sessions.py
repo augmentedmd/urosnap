@@ -306,7 +306,7 @@ def snapshot_thumbnail(
     return FileResponse(path, media_type="image/jpeg")
 
 
-def _placeholder_jpeg(message: str = "Starting preview…") -> bytes:
+def _placeholder_jpeg(message: str = "Starting preview...") -> bytes:
     import cv2
     import numpy as np
 

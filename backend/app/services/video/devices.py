@@ -106,40 +106,42 @@ def list_capture_devices(max_index: int = 8, *, force: bool = False) -> list[Cap
     ):
         return list(_device_cache)
 
-    # Do not open cameras for probing while the pipeline already owns the device —
-    # that steals the handle and causes preview 503 / synthetic fallback loops.
-    if not force and _device_cache is not None:
+    settings = get_settings()
+
+    def _base_devices() -> list[CaptureDevice]:
+        rows = [
+            CaptureDevice(
+                id="synthetic",
+                name="Synthetic pattern (simulator)",
+                source_type="synthetic",
+                resolutions=COMMON_RESOLUTIONS,
+                frame_rates=COMMON_FPS,
+                available=True,
+            ),
+            CaptureDevice(
+                id="file",
+                name="Prerecorded test video",
+                source_type="file",
+                resolutions=COMMON_RESOLUTIONS,
+                frame_rates=COMMON_FPS,
+                available=settings.sample_video_path.exists(),
+            ),
+        ]
+        return rows
+
+    # Never open cameras for probing while acquisition owns the device.
+    if not force:
         try:
             from app.services.video.pipeline import get_video_pipeline
 
             if get_video_pipeline().is_acquiring():
-                return list(_device_cache)
+                if _device_cache is not None:
+                    return list(_device_cache)
+                return _base_devices()
         except Exception:  # noqa: BLE001
             pass
 
-    settings = get_settings()
-    devices: list[CaptureDevice] = [
-        CaptureDevice(
-            id="synthetic",
-            name="Synthetic pattern (simulator)",
-            source_type="synthetic",
-            resolutions=COMMON_RESOLUTIONS,
-            frame_rates=COMMON_FPS,
-            available=True,
-        )
-    ]
-
-    sample = settings.sample_video_path
-    devices.append(
-        CaptureDevice(
-            id="file",
-            name="Prerecorded test video",
-            source_type="file",
-            resolutions=COMMON_RESOLUTIONS,
-            frame_rates=COMMON_FPS,
-            available=sample.exists(),
-        )
-    )
+    devices: list[CaptureDevice] = _base_devices()
 
     seen_indexes: set[int] = set()
     consecutive_misses = 0
