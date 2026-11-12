@@ -30,7 +30,7 @@ def health(db: Session = Depends(get_db)) -> HealthOut:
     # Only warn about live capture when a session actually needs the device.
     if active_session and not capture.connected:
         warnings.append("Capture device not connected for the active session")
-    if not cameras:
+    if not cameras and not pipeline.is_acquiring():
         warnings.append(
             "No USB/webcam capture device detected. New sessions will use synthetic video until "
             "a camera is available. On Windows: Settings → Privacy → Camera → allow desktop apps; "
