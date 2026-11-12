@@ -44,11 +44,17 @@ export function Dashboard() {
         <Card className="p-5">
           <div className="text-sm text-[var(--color-muted)]">Capture device</div>
           <div className="mt-2 text-xl font-semibold">
-            {h?.capture.connected ? 'Connected' : 'Not connected'}
+            {(h?.cameras_detected ?? 0) > 0
+              ? `${h?.cameras_detected} detected`
+              : h?.capture.connected
+                ? 'Connected'
+                : 'None detected'}
           </div>
           <div className="mt-3 text-sm text-[var(--color-muted)]">
-            {h?.capture.source_type ?? '—'}
-            {h?.capture.incoming_fps ? ` · ${h.capture.incoming_fps.toFixed(1)} in FPS` : ''}
+            {h?.camera_names?.[0] ||
+              (h?.active_session_id
+                ? `${h?.capture.source_type ?? '—'}${h?.capture.incoming_fps ? ` · ${h.capture.incoming_fps.toFixed(1)} in FPS` : ''}`
+                : 'Idle — open New Session to use a camera')}
           </div>
         </Card>
         <Card className="p-5">

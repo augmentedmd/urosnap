@@ -20,23 +20,27 @@ def health(db: Session = Depends(get_db)) -> HealthOut:
     free, total = StorageManager().disk_usage(settings.data_dir)
     pipeline = get_video_pipeline()
     metrics = pipeline.recording_metrics()
+    cameras = [d for d in list_capture_devices() if d.source_type == "camera" and d.available]
+    capture = pipeline.capture_status()
+    active_session = metrics.get("session_public_id")
+
     warnings: list[str] = []
     if free < settings.low_disk_warning_bytes:
         warnings.append("Low disk space")
-    capture = pipeline.capture_status()
-    if not capture.connected:
-        warnings.append("Capture device not connected")
-    cameras = [d for d in list_capture_devices() if d.source_type == "camera" and d.available]
+    # Only warn about live capture when a session actually needs the device.
+    if active_session and not capture.connected:
+        warnings.append("Capture device not connected for the active session")
     if not cameras:
         warnings.append(
-            "No USB/webcam capture device detected. Using synthetic video until a camera is available. "
-            "On Windows: Settings → Privacy → Camera → allow desktop apps; check Device Manager; "
-            "close Zoom/Teams/other apps that may lock the device; then refresh."
+            "No USB/webcam capture device detected. New sessions will use synthetic video until "
+            "a camera is available. On Windows: Settings → Privacy → Camera → allow desktop apps; "
+            "check Device Manager; close Zoom/Teams/other apps that may lock the device; then refresh."
         )
     if metrics.get("warning"):
         warnings.append(str(metrics["warning"]))
     if metrics.get("error"):
         warnings.append(str(metrics["error"]))
+
     return HealthOut(
         status="ok",
         service=settings.app_name,
@@ -44,8 +48,10 @@ def health(db: Session = Depends(get_db)) -> HealthOut:
         disk_free_bytes=free,
         disk_total_bytes=total,
         low_disk=free < settings.low_disk_warning_bytes,
-        active_session_id=metrics.get("session_public_id"),
+        active_session_id=active_session,
         recording_state=str(metrics.get("state") or "idle"),
         capture=capture,
+        cameras_detected=len(cameras),
+        camera_names=[d.name for d in cameras],
         warnings=warnings,
     )

@@ -264,6 +264,9 @@ class HealthOut(BaseModel):
     active_session_id: Optional[str]
     recording_state: str
     capture: CaptureStatus
+    # Hardware enumeration (independent of whether a session is actively capturing).
+    cameras_detected: int = 0
+    camera_names: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
