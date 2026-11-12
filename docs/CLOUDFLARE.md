@@ -59,12 +59,29 @@ After deploy, open the Worker URL. The dashboard should report the local recordi
 
 ## Configure the browser
 
-1. Start the local service on the Windows PC (`uvicorn` on port 8000).
-2. Open the Cloudflare UI URL on that same PC (or a clinic browser that can reach the PC).
-3. In **Settings**, set:
+1. Start the local service on the Windows PC (`uvicorn` on port 8000):
+
+```powershell
+cd C:\OpenSnap\backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+2. Confirm the service answers: open `http://127.0.0.1:8000/api/health` on that PC.
+3. Open the Cloudflare UI URL on that same PC (or a clinic browser that can reach the PC).
+4. When Chrome/Edge prompts to allow **local network / private network** access for the Cloudflare site, choose Allow. Without this, the UI shows “Local recording service unreachable.”
+5. In **Settings**, set:
    - **Local recording service URL** → `http://127.0.0.1:8000` (desktop on the same PC) or `http://<workstation-lan-ip>:8000`
    - **Public UI base URL** → your Cloudflare Worker URL (used inside iPhone QR links)
-4. Save connection (reloads the app).
+6. Click **Test connection**, then **Save connection**.
+
+### If the Cloudflare UI cannot reach localhost
+
+Browsers treat Cloudflare (`https://…workers.dev`) as a public site and `http://127.0.0.1:8000` as a private/local target. OpenSnap’s local service advertises Private Network Access CORS headers, but you must still:
+
+- Keep the recorder running on the workstation
+- Allow the browser’s local-network permission prompt
+- Or skip Cloudflare for clinical use and open `http://127.0.0.1:8000` (local UI + local API, fully offline)
 
 ## iPhone remote with Cloudflare UI
 

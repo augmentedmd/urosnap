@@ -79,13 +79,42 @@ export function Dashboard() {
         <Card className="mt-4 border-red-200 bg-red-50/80 p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 text-red-700" />
-            <div>
+            <div className="space-y-2">
               <div className="font-semibold text-red-900">Local recording service unreachable</div>
-              <p className="mt-1 text-sm text-red-900">
-                Start OpenSnap on the Windows workstation (`uvicorn` on port 8000), then confirm the
-                local service URL in Settings. Cloudflare only hosts the UI shell — it cannot process
-                video or patient data.
+              <p className="text-sm text-red-900">
+                Cloudflare only hosts the UI shell. This browser must reach the Windows recorder at{' '}
+                <code className="rounded bg-red-100 px-1">{serviceBase}</code>.
               </p>
+              <ol className="list-decimal space-y-1 pl-5 text-sm text-red-900">
+                <li>
+                  On the Windows PC, start the service:
+                  <pre className="mt-1 overflow-x-auto rounded bg-red-100/80 p-2 text-xs text-red-950">
+                    {`cd backend
+.\\.venv\\Scripts\\Activate.ps1
+uvicorn app.main:app --host 0.0.0.0 --port 8000`}
+                  </pre>
+                </li>
+                <li>
+                  Verify in a new tab:{' '}
+                  <a className="font-semibold underline" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">
+                    {serviceBase}/api/health
+                  </a>
+                </li>
+                <li>
+                  If this UI is on Cloudflare (HTTPS), allow local/private network access when the browser
+                  prompts, then open Settings and confirm the local service URL.
+                </li>
+                <li>
+                  Easiest offline path: open{' '}
+                  <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
+                    http://127.0.0.1:8000
+                  </a>{' '}
+                  (same-origin UI + API on the workstation).
+                </li>
+              </ol>
+              <Link to="/settings" className="inline-flex text-sm font-semibold text-red-950 underline">
+                Open connection settings
+              </Link>
             </div>
           </div>
         </Card>
