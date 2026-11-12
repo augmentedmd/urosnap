@@ -15,10 +15,20 @@ export function Remote() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [controllerId] = useState(() => localStorage.getItem('es_controller_id') || uid('ctl'))
+  const [controllerId] = useState(() => {
+    try {
+      return localStorage.getItem('es_controller_id') || uid('ctl')
+    } catch {
+      return uid('ctl')
+    }
+  })
 
   useEffect(() => {
-    localStorage.setItem('es_controller_id', controllerId)
+    try {
+      localStorage.setItem('es_controller_id', controllerId)
+    } catch {
+      // Storage can be unavailable (e.g. locked-down Safari); the id is only a hint.
+    }
   }, [controllerId])
 
   useEffect(() => {

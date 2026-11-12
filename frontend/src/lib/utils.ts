@@ -27,5 +27,10 @@ export function formatDuration(sec: number): string {
 }
 
 export function uid(prefix = 'cmd'): string {
-  return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+  // crypto.randomUUID only exists in secure contexts; the phone remote is served
+  // over plain http on the LAN IP, where only getRandomValues is available.
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${prefix}_${hex}`
 }
