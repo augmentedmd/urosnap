@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.database import SessionLocal, engine
 from app.models import entities as _entities  # noqa: F401
 from app.database import Base
+from app.middleware_lan import LanRemoteOnlyMiddleware
 from app.middleware_pna import PrivateNetworkAccessMiddleware
 from app.paths import frontend_dist_dir
 from app.services.sessions import get_session_service
@@ -69,6 +70,7 @@ app.add_middleware(
 )
 # Outer middleware so PNA headers are added to CORS preflight responses too.
 app.add_middleware(PrivateNetworkAccessMiddleware)
+app.add_middleware(LanRemoteOnlyMiddleware)
 
 app.include_router(routes_health.router)
 app.include_router(routes_capture.router)

@@ -222,6 +222,12 @@ export function Recording() {
             <p className="mt-3 break-all text-xs text-[var(--color-muted)]">
               {pairing.data?.pairing_url}
             </p>
+            {pairing.data?.pairing_url?.includes('127.0.0.1') ? (
+              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                This PC has no network address the phone can reach. Connect the PC to Wi-Fi or
+                Ethernet, then press Revoke to make a new code.
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-[var(--color-muted)]">
               QR contains a temporary pairing token only — no patient identifiers.
               Scan from a phone on the same approved local network.
