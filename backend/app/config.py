@@ -7,17 +7,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="ENDOSCOPY_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="OPENSNAP_", env_file=".env", extra="ignore")
 
-    app_name: str = "Endoscopy Studio"
+    app_name: str = "OpenSnap"
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
 
     # Storage
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
-    storage_subdir: str = "endoscopy_sessions"
-    database_name: str = "endoscopy_studio.db"
+    storage_subdir: str = "opensnap_sessions"
+    database_name: str = "opensnap.db"
 
     # Practice letterhead defaults (verify before clinical use)
     practice_name: str = "Mount Sinai Doctors – Long Island"

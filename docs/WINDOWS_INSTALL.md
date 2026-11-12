@@ -1,8 +1,8 @@
-# Windows Installation — Endoscopy Studio
+# Windows Installation — OpenSnap
 
 ## Overview
 
-Endoscopy Studio runs as a local recording service on the Windows computer attached to the HDMI-to-USB capture device. The desktop UI is a browser app served by that service. The iPhone remote reaches the same service over the clinic LAN using HTTPS.
+OpenSnap runs as a local recording service on the Windows computer attached to the HDMI-to-USB capture device. The desktop UI is a browser app served by that service. The iPhone remote reaches the same service over the clinic LAN using HTTPS.
 
 ## Prerequisites
 
@@ -14,12 +14,12 @@ Endoscopy Studio runs as a local recording service on the Windows computer attac
 
 ## Install (clinic PC)
 
-1. Copy the application folder to a local path, e.g. `C:\EndoscopyStudio`.
+1. Copy the application folder to a local path, e.g. `C:\OpenSnap`.
 2. Open PowerShell as the clinic workstation account that will run procedures.
 3. Create and activate a virtual environment:
 
 ```powershell
-cd C:\EndoscopyStudio\backend
+cd C:\OpenSnap\backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -57,10 +57,10 @@ Prototype options:
 1. **Task Scheduler** — create a task at user logon that runs:
 
 ```
-C:\EndoscopyStudio\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+C:\OpenSnap\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Working directory: `C:\EndoscopyStudio\backend`.
+Working directory: `C:\OpenSnap\backend`.
 
 2. **NSSM** (recommended for service-like behavior) — install as a Windows service that restarts on failure.
 
@@ -72,7 +72,7 @@ Production deployment should use an institution-approved service account, restri
 
 1. Connect endoscopy HDMI → (optional wireless HDMI) → HDMI-to-USB adapter → Windows PC.
 2. Confirm the adapter appears as a camera in Windows Settings.
-3. In Endoscopy Studio → New Session / Settings, select the device by name (do not assume index 0).
+3. In OpenSnap → New Session / Settings, select the device by name (do not assume index 0).
 4. Validate resolution and frame-rate options. Unsupported rates show warnings.
 
 Simulation mode (synthetic pattern / sample video / webcam) can be used without the endoscopy tower.
@@ -98,7 +98,7 @@ The phone cannot reach `localhost` on the Windows PC. Use the PC’s LAN IP, e.g
 
 ## Storage
 
-Default: `C:\EndoscopyStudio\data\endoscopy_sessions\`
+Default: `C:\OpenSnap\data\opensnap_sessions\`
 
 Restrict NTFS permissions to the recording service account and authorized clinical staff. Patient identifiers live in SQLite and must not appear in directory names.
 

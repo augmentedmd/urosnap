@@ -395,7 +395,7 @@ class VideoPipeline:
         cv2.line(overlay, (cx - radius, cy), (cx + radius, cy), (0, 220, 180), 1)
         cv2.line(overlay, (cx, cy - radius), (cx, cy + radius), (0, 220, 180), 1)
         frame = cv2.addWeighted(overlay, 0.85, frame, 0.15, 0)
-        label = f"ENDOSCOPY STUDIO SIM  {datetime.utcnow().strftime('%H:%M:%S')}"
+        label = f"OPENSNAP SIM  {datetime.utcnow().strftime('%H:%M:%S')}"
         cv2.putText(frame, label, (24, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (20, 20, 20), 3, cv2.LINE_AA)
         cv2.putText(frame, label, (24, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (240, 240, 240), 1, cv2.LINE_AA)
         return frame

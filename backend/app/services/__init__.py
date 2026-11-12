@@ -1,1 +1,1 @@
-"""Domain services for Endoscopy Studio."""
+"""Domain services for OpenSnap."""

@@ -1,6 +1,6 @@
 # Security & Deployment Checklist
 
-**Prototype status:** Endoscopy Studio implements technical safeguards suitable for local evaluation. It does **not** claim HIPAA compliance or production readiness. Clinical use requires institutional IT, security, compliance, and clinical engineering review.
+**Prototype status:** OpenSnap implements technical safeguards suitable for local evaluation. It does **not** claim HIPAA compliance or production readiness. Clinical use requires institutional IT, security, compliance, and clinical engineering review.
 
 ## Data residency
 
