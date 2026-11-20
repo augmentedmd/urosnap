@@ -347,6 +347,7 @@ def preview_jpeg(session: ProcedureSession = Depends(load_session)) -> Response:
 
     # Idempotent bind — configure() no longer restarts when already attached.
     get_session_service().attach_session_for_review(session)
+    pipeline.touch_preview()
     # Pipeline always publishes synthetic within ~1 frame, then upgrades to camera.
     frame = pipeline.get_latest_jpeg() or pipeline.wait_for_jpeg(timeout=0.4)
     if frame is None:
@@ -364,9 +365,11 @@ def preview_stream(session: ProcedureSession = Depends(load_session)) -> Streami
     from app.services.sessions import get_session_service
 
     get_session_service().attach_session_for_review(session)
+    pipeline.touch_preview()
 
     def gen():
         while True:
+            pipeline.touch_preview()
             frame = pipeline.wait_for_jpeg(timeout=1.0)
             if frame is None:
                 continue
