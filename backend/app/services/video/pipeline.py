@@ -12,12 +12,18 @@ from typing import Callable, Optional
 import cv2
 import numpy as np
 
-from app.config import get_settings
 from app.schemas.api import CaptureStatus
 from app.services.video.devices import open_capture, open_capture_quick, parse_resolution
 
 
 SnapshotCallback = Callable[[np.ndarray, datetime, str], None]
+
+# Preview/acquisition rate when not recording. Keeps CPU/USB load down so Windows
+# HID (mouse/keyboard) stays responsive; recording uses requested_fps instead.
+PREVIEW_FPS_CAP = 12
+# Stop the capture thread when nothing is recording and no preview client has
+# touched the pipeline recently (Recording page unmounted, session left idle).
+PREVIEW_IDLE_TIMEOUT_SEC = 8.0
 
 
 @dataclass
@@ -31,6 +37,8 @@ class PipelineConfig:
     video_dir: Optional[Path] = None
     snapshots_dir: Optional[Path] = None
     thumbnails_dir: Optional[Path] = None
+    preview_fps_cap: int = PREVIEW_FPS_CAP
+    preview_idle_timeout_sec: float = PREVIEW_IDLE_TIMEOUT_SEC
 
 
 @dataclass
@@ -74,9 +82,15 @@ class VideoPipeline:
         self._record_frame_times: deque[float] = deque(maxlen=60)
         self._synthetic_t0 = time.monotonic()
         self._thread_started_at: float = 0.0
+        self._last_preview_interest_mono: float = time.monotonic()
 
     def set_snapshot_callback(self, callback: SnapshotCallback) -> None:
         self._snapshot_callback = callback
+
+    def touch_preview(self) -> None:
+        """Mark that a preview client is still interested (keeps acquisition alive)."""
+        with self._lock:
+            self._last_preview_interest_mono = time.monotonic()
 
     def configure(self, config: PipelineConfig) -> None:
         with self._lock:
@@ -94,9 +108,13 @@ class VideoPipeline:
                 self._config.video_dir = config.video_dir or self._config.video_dir
                 self._config.snapshots_dir = config.snapshots_dir or self._config.snapshots_dir
                 self._config.thumbnails_dir = config.thumbnails_dir or self._config.thumbnails_dir
+                self._config.preview_fps_cap = config.preview_fps_cap
+                self._config.preview_idle_timeout_sec = config.preview_idle_timeout_sec
+                self._last_preview_interest_mono = time.monotonic()
                 return
 
             self._config = config
+            self._last_preview_interest_mono = time.monotonic()
             if was_running:
                 if not self._state.recording:
                     self._restart_acquisition_unlocked()
@@ -114,6 +132,8 @@ class VideoPipeline:
     def set_remote_connected(self, connected: bool) -> None:
         with self._lock:
             self._state.remote_connected = connected
+            if connected:
+                self._last_preview_interest_mono = time.monotonic()
 
     def start_recording(self) -> tuple[bool, str]:
         with self._lock:
@@ -122,6 +142,7 @@ class VideoPipeline:
             if not self._config.video_dir:
                 return False, "Session video directory not configured"
             # Preview must already be producing frames — do not block Start on camera health.
+            self._last_preview_interest_mono = time.monotonic()
             if self._latest_frame is None and (not self._thread or not self._thread.is_alive()):
                 self._start_acquisition_unlocked()
             width, height = parse_resolution(self._config.resolution)
@@ -149,28 +170,41 @@ class VideoPipeline:
             return True, "Recording started"
 
     def stop_recording(self) -> tuple[bool, str, Optional[Path]]:
+        writer: Optional[cv2.VideoWriter] = None
+        temp_path: Optional[Path] = None
+        final_path: Optional[Path] = None
         with self._lock:
             if not self._state.recording:
                 return False, "Not recording", None
             self._state.recording = False
             self._state.stopped_at = time.monotonic()
-            final_path = self._finalize_writer_unlocked()
-            return True, "Recording stopped", final_path
+            self._last_preview_interest_mono = time.monotonic()
+            writer = self._writer
+            self._writer = None
+            temp_path = self._temp_video_path
+            final_path = self._final_video_path
+        # Release / remux outside the lock so preview/status calls are not blocked.
+        result = self._finalize_writer(writer, temp_path, final_path)
+        return True, "Recording stopped", result
 
     def take_manual_snapshot(self) -> tuple[bool, str, Optional[dict]]:
         with self._lock:
-            frame = self._latest_frame
+            frame = None if self._latest_frame is None else self._latest_frame.copy()
             if frame is None:
                 return False, "No frame available", None
-            meta = self._save_snapshot_unlocked(frame, "manual")
-            return True, "Snapshot captured", meta
+        meta = self._save_snapshot(frame, "manual")
+        if meta is None:
+            return False, "Snapshot directories not configured", None
+        return True, "Snapshot captured", meta
 
     def get_latest_jpeg(self) -> Optional[bytes]:
         with self._lock:
+            self._last_preview_interest_mono = time.monotonic()
             return self._latest_jpeg
 
     def wait_for_jpeg(self, timeout: float = 1.0) -> Optional[bytes]:
         with self._preview_condition:
+            self._last_preview_interest_mono = time.monotonic()
             self._preview_condition.wait(timeout=timeout)
             return self._latest_jpeg
 
@@ -223,11 +257,19 @@ class VideoPipeline:
             }
 
     def shutdown(self) -> None:
+        writer: Optional[cv2.VideoWriter] = None
+        temp_path: Optional[Path] = None
+        final_path: Optional[Path] = None
         with self._lock:
             if self._state.recording:
                 self._state.recording = False
-                self._finalize_writer_unlocked()
+                writer = self._writer
+                self._writer = None
+                temp_path = self._temp_video_path
+                final_path = self._final_video_path
             self._stop_event.set()
+        if writer is not None or temp_path is not None:
+            self._finalize_writer(writer, temp_path, final_path)
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
         with self._lock:
@@ -246,14 +288,30 @@ class VideoPipeline:
             self._state.warning = None
             self._state.error = None
             self._state.remote_connected = False
+            self._last_preview_interest_mono = time.monotonic()
             # Allow acquisition thread to be started again after shutdown/tests
             self._stop_event = threading.Event()
 
     # --- internals ---
 
+    def _acquisition_interval_sec(self) -> float:
+        """Frame period for the capture loop (preview-capped unless recording)."""
+        requested = max(1, int(self._config.requested_fps))
+        if self._state.recording:
+            fps = float(requested)
+        else:
+            cap = max(1, int(self._config.preview_fps_cap))
+            fps = float(min(requested, cap))
+        return 1.0 / fps
+
     def _start_acquisition_unlocked(self) -> None:
         self._stop_event.clear()
         self._thread_started_at = time.monotonic()
+        self._last_preview_interest_mono = time.monotonic()
+        # Drop stale frames so callers wait for the new thread (not a prior session).
+        self._latest_jpeg = None
+        self._latest_frame = None
+        self._state.connected = True
         self._thread = threading.Thread(target=self._run_loop, name="video-pipeline", daemon=True)
         self._thread.start()
 
@@ -295,6 +353,12 @@ class VideoPipeline:
                 import ctypes
 
                 ctypes.windll.ole32.CoInitializeEx(None, 0x0)  # COINIT_MULTITHREADED
+                # Prefer HID responsiveness over capture throughput on clinic PCs.
+                THREAD_PRIORITY_BELOW_NORMAL = -1
+                ctypes.windll.kernel32.SetThreadPriority(
+                    ctypes.windll.kernel32.GetCurrentThread(),
+                    THREAD_PRIORITY_BELOW_NORMAL,
+                )
             except Exception:  # noqa: BLE001
                 pass
 
@@ -328,10 +392,26 @@ class VideoPipeline:
         try:
             while not self._stop_event.is_set():
                 now = time.monotonic()
-                if now < next_frame_due:
-                    time.sleep(min(0.005, next_frame_due - now))
+                with self._lock:
+                    recording = self._state.recording
+                    remote_connected = self._state.remote_connected
+                    idle_timeout = max(1.0, float(self._config.preview_idle_timeout_sec))
+                    last_interest = self._last_preview_interest_mono
+                    interval = self._acquisition_interval_sec()
+
+                if (
+                    not recording
+                    and not remote_connected
+                    and (now - last_interest) >= idle_timeout
+                ):
+                    # No preview clients and not recording — free USB/CPU.
+                    break
+
+                remaining = next_frame_due - now
+                if remaining > 0:
+                    time.sleep(remaining)
                     continue
-                next_frame_due = now + (1.0 / 30.0)
+                next_frame_due = now + interval
 
                 frame = self._read_frame(cap, source_type, width, height)
                 if frame is None:
@@ -370,43 +450,63 @@ class VideoPipeline:
                             self._state.warning = None
 
                 ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                jpeg_bytes = jpeg.tobytes() if ok else None
+
+                do_write = False
+                do_snapshot = False
+                writer: Optional[cv2.VideoWriter] = None
+                requested_fps = 15
                 with self._lock:
                     self._state.connected = True
                     self._latest_frame = frame
-                    if ok:
-                        self._latest_jpeg = jpeg.tobytes()
+                    if jpeg_bytes is not None:
+                        self._latest_jpeg = jpeg_bytes
                         self._preview_condition.notify_all()
                     self._frame_times.append(time.monotonic())
                     self._state.incoming_fps = self._calc_fps(self._frame_times)
                     self._state.last_frame_ts = time.monotonic()
                     frames_published += 1
+                    requested_fps = max(1, int(self._config.requested_fps))
 
                     if self._state.recording and self._writer is not None:
-                        interval = 1.0 / max(1, self._config.requested_fps)
-                        if time.monotonic() - last_record_write >= interval * 0.98:
-                            resized = frame
-                            if frame.shape[1] != width or frame.shape[0] != height:
-                                resized = cv2.resize(frame, (width, height))
-                            self._writer.write(resized)
-                            self._state.frames_written += 1
-                            self._record_frame_times.append(time.monotonic())
-                            self._state.actual_fps = self._calc_fps(self._record_frame_times)
-                            last_record_write = time.monotonic()
-                            if (
-                                self._state.frames_written > self._config.requested_fps * 2
-                                and self._state.actual_fps
-                                and self._state.actual_fps < self._config.requested_fps * 0.7
-                            ):
-                                self._state.warning = (
-                                    f"Achieved ~{self._state.actual_fps:.1f} FPS; "
-                                    f"requested {self._config.requested_fps} FPS"
-                                )
+                        record_interval = 1.0 / requested_fps
+                        if time.monotonic() - last_record_write >= record_interval * 0.98:
+                            do_write = True
+                            writer = self._writer
 
                     if self._state.recording:
-                        interval = max(0.5, self._config.snapshot_interval_sec)
-                        if time.monotonic() - self._last_auto_snapshot_mono >= interval:
-                            self._save_snapshot_unlocked(frame, "automatic")
+                        snap_interval = max(0.5, self._config.snapshot_interval_sec)
+                        if time.monotonic() - self._last_auto_snapshot_mono >= snap_interval:
+                            do_snapshot = True
                             self._last_auto_snapshot_mono = time.monotonic()
+
+                if do_write and writer is not None:
+                    resized = frame
+                    if frame.shape[1] != width or frame.shape[0] != height:
+                        resized = cv2.resize(frame, (width, height))
+                    try:
+                        writer.write(resized)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    else:
+                        with self._lock:
+                            if self._writer is writer:
+                                self._state.frames_written += 1
+                                self._record_frame_times.append(time.monotonic())
+                                self._state.actual_fps = self._calc_fps(self._record_frame_times)
+                                last_record_write = time.monotonic()
+                                if (
+                                    self._state.frames_written > requested_fps * 2
+                                    and self._state.actual_fps
+                                    and self._state.actual_fps < requested_fps * 0.7
+                                ):
+                                    self._state.warning = (
+                                        f"Achieved ~{self._state.actual_fps:.1f} FPS; "
+                                        f"requested {requested_fps} FPS"
+                                    )
+
+                if do_snapshot:
+                    self._save_snapshot(frame, "automatic")
 
                 # After preview is alive, try a single quick same-thread camera open.
                 if (
@@ -427,14 +527,14 @@ class VideoPipeline:
                                     pass
                             cap = candidate
                             source_type = "camera"
+                            ok2, jpeg2 = cv2.imencode(
+                                ".jpg", probe, [int(cv2.IMWRITE_JPEG_QUALITY), 75]
+                            )
                             with self._lock:
                                 self._state.connected = True
                                 self._state.error = None
                                 self._state.warning = None
                                 self._latest_frame = probe
-                                ok2, jpeg2 = cv2.imencode(
-                                    ".jpg", probe, [int(cv2.IMWRITE_JPEG_QUALITY), 75]
-                                )
                                 if ok2:
                                     self._latest_jpeg = jpeg2.tobytes()
                                     self._preview_condition.notify_all()
@@ -468,6 +568,11 @@ class VideoPipeline:
                             self._state.warning = f"Waiting for sample video ({exc})"
 
         finally:
+            with self._lock:
+                # Only the active acquisition thread may clear connected — a replaced
+                # thread (join timeout / restart) must not clobber the new loop.
+                if threading.current_thread() is self._thread:
+                    self._state.connected = False
             if cap is not None:
                 try:
                     cap.release()
@@ -529,28 +634,27 @@ class VideoPipeline:
         cv2.putText(frame, label, (24, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (240, 240, 240), 1, cv2.LINE_AA)
         return frame
 
-    def _save_snapshot_unlocked(self, frame: np.ndarray, capture_type: str) -> dict:
-        assert self._config.snapshots_dir and self._config.thumbnails_dir
-        self._config.snapshots_dir.mkdir(parents=True, exist_ok=True)
-        self._config.thumbnails_dir.mkdir(parents=True, exist_ok=True)
-        self._state.snapshot_sequence += 1
-        seq = self._state.snapshot_sequence
+    def _save_snapshot(self, frame: np.ndarray, capture_type: str) -> Optional[dict]:
+        """Write snapshot JPEGs without holding the pipeline lock across disk I/O."""
+        with self._lock:
+            if not self._config.snapshots_dir or not self._config.thumbnails_dir:
+                return None
+            snapshots_dir = self._config.snapshots_dir
+            thumbnails_dir = self._config.thumbnails_dir
+            self._state.snapshot_sequence += 1
+            seq = self._state.snapshot_sequence
+            callback = self._snapshot_callback
         ts = datetime.utcnow()
         filename = f"snapshot_{seq:06d}.jpg"
-        path = self._config.snapshots_dir / filename
-        thumb_path = self._config.thumbnails_dir / filename
+        path = snapshots_dir / filename
+        thumb_path = thumbnails_dir / filename
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
+        thumbnails_dir.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
-        # Thumbnail
         h, w = frame.shape[:2]
         scale = 320 / max(w, 1)
         thumb = cv2.resize(frame, (int(w * scale), int(h * scale)))
         cv2.imwrite(str(thumb_path), thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-
-        self._state.snapshot_count += 1
-        if capture_type == "manual":
-            self._state.manual_snapshot_count += 1
-        else:
-            self._state.automatic_snapshot_count += 1
 
         meta = {
             "sequence_number": seq,
@@ -559,33 +663,46 @@ class VideoPipeline:
             "capture_timestamp": ts,
             "capture_type": capture_type,
         }
-        self._state.last_snapshots.append(meta)
-        if len(self._state.last_snapshots) > 50:
-            self._state.last_snapshots = self._state.last_snapshots[-50:]
-        if self._snapshot_callback:
+        with self._lock:
+            self._state.snapshot_count += 1
+            if capture_type == "manual":
+                self._state.manual_snapshot_count += 1
+            else:
+                self._state.automatic_snapshot_count += 1
+            self._state.last_snapshots.append(meta)
+            if len(self._state.last_snapshots) > 50:
+                self._state.last_snapshots = self._state.last_snapshots[-50:]
+        if callback:
             try:
-                self._snapshot_callback(frame, ts, capture_type)
+                callback(frame, ts, capture_type)
             except Exception:  # noqa: BLE001
                 pass
         return meta
 
-    def _finalize_writer_unlocked(self) -> Optional[Path]:
-        if self._writer is not None:
-            self._writer.release()
-            self._writer = None
-        if not self._temp_video_path or not self._temp_video_path.exists():
+    def _finalize_writer(
+        self,
+        writer: Optional[cv2.VideoWriter],
+        temp_path: Optional[Path],
+        final_path: Optional[Path],
+    ) -> Optional[Path]:
+        if writer is not None:
+            try:
+                writer.release()
+            except Exception:  # noqa: BLE001
+                pass
+        if not temp_path or not temp_path.exists():
             return None
         # Prefer MP4 via ffmpeg remux/transcode; fall back to keeping AVI
-        final = self._final_video_path or self._temp_video_path.with_suffix(".mp4")
-        converted = self._transcode_to_mp4(self._temp_video_path, final)
+        final = final_path or temp_path.with_suffix(".mp4")
+        converted = self._transcode_to_mp4(temp_path, final)
         if converted:
             try:
-                self._temp_video_path.unlink(missing_ok=True)
+                temp_path.unlink(missing_ok=True)
             except OSError:
                 pass
             return final
         # Keep recoverable intermediate
-        return self._temp_video_path
+        return temp_path
 
     @staticmethod
     def _transcode_to_mp4(src: Path, dst: Path) -> bool:
