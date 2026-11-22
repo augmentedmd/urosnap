@@ -7,6 +7,7 @@ import time
 from typing import Iterator, Optional
 
 import cv2
+import numpy as np
 
 from app.config import get_settings
 from app.schemas.api import CaptureDevice
@@ -65,14 +66,47 @@ def _open_attempts(index: int, backend: int) -> Iterator[cv2.VideoCapture]:
         yield cv2.VideoCapture(index + backend)
 
 
-def _warm_read(cap: cv2.VideoCapture, tries: int = 20, delay: float = 0.05):
-    """DirectShow capture cards often return no frame for the first reads after open."""
+def frame_has_signal(frame, *, min_mean: float = 6.0, min_std: float = 3.0) -> bool:
+    """True when a frame is unlikely to be an unlocked / no-signal black field.
+
+    HDMI-to-USB capture sticks often deliver valid-looking black frames for a while
+    after open until the input locks. Treating those as success leaves LivePreview
+    stuck on a black card until the device is reopened.
+    """
+    if frame is None:
+        return False
+    try:
+        sample = frame[::8, ::8]
+        mean = float(np.mean(sample))
+        std = float(np.std(sample))
+    except Exception:  # noqa: BLE001
+        return False
+    return mean >= min_mean or std >= min_std
+
+
+def _warm_read(
+    cap: cv2.VideoCapture,
+    tries: int = 20,
+    delay: float = 0.05,
+    *,
+    require_signal: bool = False,
+):
+    """DirectShow capture cards often return no frame for the first reads after open.
+
+    When require_signal=True, keep reading past empty/black frames so we do not
+    "lock" onto a no-signal black field (common on session start).
+    """
+    last = None
     for _ in range(tries):
         ok, frame = cap.read()
         if ok and frame is not None:
-            return frame
+            last = frame
+            if not require_signal or frame_has_signal(frame):
+                return frame
         time.sleep(delay)
-    return None
+    if require_signal:
+        return None
+    return last
 
 
 def _probe_camera(index: int, backend: int, backend_name: str) -> Optional[CaptureDevice]:
@@ -241,9 +275,12 @@ def open_capture(
                     cap.release()
                     last_error = f"{backend_name} could not open index {index}"
                     continue
-                if _warm_read(cap) is None:
+                # Prefer a non-black frame so we don't accept an unlocked HDMI input.
+                if _warm_read(cap, tries=40, delay=0.05, require_signal=True) is None:
                     cap.release()
-                    last_error = f"{backend_name} opened index {index} but produced no frames"
+                    last_error = (
+                        f"{backend_name} opened index {index} but produced no video signal"
+                    )
                     continue
                 _index_backends[index] = backend
                 logger.info(
@@ -291,9 +328,14 @@ def open_capture_quick(
                 continue
             # Do not force a resolution: renegotiating format right after open can make
             # DirectShow stop delivering frames. The pipeline resizes frames instead.
-            if _warm_read(cap) is None:
+            # Require non-black frames (~1.5s): capture cards often return black until
+            # HDMI/SDI locks; accepting black makes session-start preview stay dark
+            # until a later reopen (e.g. leave page → idle-stop → return).
+            if _warm_read(cap, tries=30, delay=0.05, require_signal=True) is None:
                 cap.release()
-                last_error = f"{backend_name} opened index {index} but produced no frames"
+                last_error = (
+                    f"{backend_name} opened index {index} but produced no video signal"
+                )
                 continue
             _index_backends[index] = backend
             logger.info("Quick-opened camera:%s with %s", index, backend_name)
