@@ -76,6 +76,8 @@ class SessionUpdate(BaseModel):
     status: Optional[str] = None
     physician: Optional[str] = None
     location: Optional[str] = None
+    # Full replace of patient demographics when provided (add or change after start).
+    patient: Optional[PatientCreate] = None
 
     @field_validator("snapshot_interval_sec")
     @classmethod

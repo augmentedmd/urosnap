@@ -64,6 +64,109 @@ def test_session_all_fields_optional(client):
     assert body["status"] in {"ready", "created"}
 
 
+def test_add_demographics_after_session_start(client):
+    created = client.post("/api/sessions", json={})
+    assert created.status_code == 200
+    sid = created.json()["public_id"]
+    assert created.json()["patient_name"] == "Unnamed patient"
+    assert created.json()["patient"]["date_of_birth"] is None
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={
+            "patient": {
+                "first_name": "Casey",
+                "last_name": "Rivera",
+                "date_of_birth": "1991-04-12",
+                "medical_record_number": "MRN-ADD-1",
+            }
+        },
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["patient_name"] == "Rivera, Casey"
+    assert body["medical_record_number"] == "MRN-ADD-1"
+    assert body["patient"]["first_name"] == "Casey"
+    assert body["patient"]["last_name"] == "Rivera"
+    assert body["patient"]["date_of_birth"] == "1991-04-12"
+    assert body["patient"]["medical_record_number"] == "MRN-ADD-1"
+
+    listed = client.get("/api/sessions", params={"q": "Rivera"})
+    assert listed.status_code == 200
+    assert any(s["public_id"] == sid and s["patient_name"] == "Rivera, Casey" for s in listed.json())
+
+
+def test_change_demographics_after_session_start(client):
+    created = client.post("/api/sessions", json=_session_payload())
+    assert created.status_code == 200
+    sid = created.json()["public_id"]
+    assert "Synthetic" in created.json()["patient_name"]
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={
+            "patient": {
+                "first_name": "Sam",
+                "last_name": "Updated",
+                "date_of_birth": "1985-09-01",
+                "medical_record_number": "MRN-CHG-9",
+            }
+        },
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["patient_name"] == "Updated, Sam"
+    assert body["medical_record_number"] == "MRN-CHG-9"
+    assert body["patient"]["date_of_birth"] == "1985-09-01"
+
+    # Clearing fields remains valid (all optional).
+    cleared = client.patch(
+        f"/api/sessions/{sid}",
+        json={
+            "patient": {
+                "first_name": "",
+                "last_name": "",
+                "date_of_birth": None,
+                "medical_record_number": "",
+            }
+        },
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["patient_name"] == "Unnamed patient"
+    assert cleared.json()["patient"]["date_of_birth"] is None
+    assert cleared.json()["medical_record_number"] == "—"
+
+
+def test_demographics_update_safe_while_recording(client):
+    created = client.post("/api/sessions", json=_session_payload())
+    sid = created.json()["public_id"]
+    start = client.post(f"/api/sessions/{sid}/recording/start")
+    assert start.status_code == 200
+    assert start.json()["state"] == "recording"
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={
+            "patient": {
+                "first_name": "Live",
+                "last_name": "Edit",
+                "date_of_birth": "1970-02-02",
+                "medical_record_number": "LIVE-1",
+            }
+        },
+    )
+    assert patched.status_code == 200
+    assert patched.json()["patient_name"] == "Edit, Live"
+    assert patched.json()["status"] == "recording"
+
+    status = client.get(f"/api/sessions/{sid}/recording/status")
+    assert status.status_code == 200
+    assert status.json()["state"] == "recording"
+
+    stop = client.post(f"/api/sessions/{sid}/recording/stop")
+    assert stop.status_code == 200
+
+
 def test_custom_procedure_saved(client):
     payload = _session_payload(
         procedure_type="Other / Custom Procedure",

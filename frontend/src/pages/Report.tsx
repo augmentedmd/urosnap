@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import { PatientDemographicsEditor } from '@/components/PatientDemographicsEditor'
 import { Button, Card, Field, PageHeader, Select, Textarea } from '@/components/ui'
 import { FileText } from 'lucide-react'
 
@@ -77,14 +78,6 @@ export function ReportPage() {
           {session.data ? (
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-[var(--color-muted)]">Patient</dt>
-                <dd className="font-semibold">{session.data.patient_name}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--color-muted)]">MRN</dt>
-                <dd className="font-semibold">{session.data.medical_record_number}</dd>
-              </div>
-              <div>
                 <dt className="text-[var(--color-muted)]">Procedure</dt>
                 <dd className="font-semibold">{session.data.display_procedure_name}</dd>
               </div>
@@ -92,9 +85,21 @@ export function ReportPage() {
                 <dt className="text-[var(--color-muted)]">Procedure date</dt>
                 <dd className="font-semibold">{formatDate(session.data.procedure_date)}</dd>
               </div>
+              <div>
+                <dt className="text-[var(--color-muted)]">Physician</dt>
+                <dd className="font-semibold">{session.data.physician || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted)]">Location</dt>
+                <dd className="font-semibold">{session.data.location || '—'}</dd>
+              </div>
             </dl>
           ) : null}
         </Card>
+
+        {session.data ? (
+          <PatientDemographicsEditor sessionId={sessionId} patient={session.data.patient} />
+        ) : null}
 
         <Card className="space-y-3 p-5">
           <Field
