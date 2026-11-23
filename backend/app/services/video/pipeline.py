@@ -13,7 +13,15 @@ import cv2
 import numpy as np
 
 from app.schemas.api import CaptureStatus
-from app.services.video.devices import open_capture, open_capture_quick, parse_resolution
+from app.services.video.devices import (
+    frame_has_signal,
+    open_capture,
+    open_capture_quick,
+    parse_resolution,
+)
+
+# After the camera is open, keep retrying if frames stay black this long (no HDMI lock).
+CAMERA_BLACK_RETRY_SEC = 2.0
 
 
 SnapshotCallback = Callable[[np.ndarray, datetime, str], None]
@@ -88,9 +96,18 @@ class VideoPipeline:
         self._snapshot_callback = callback
 
     def touch_preview(self) -> None:
-        """Mark that a preview client is still interested (keeps acquisition alive)."""
+        """Mark that a preview client is still interested (keeps acquisition alive).
+
+        Also restarts acquisition if idle-stop already exited — otherwise a poll that
+        races the dying thread can leave the pipeline stopped until remount.
+        """
         with self._lock:
             self._last_preview_interest_mono = time.monotonic()
+            self._ensure_acquiring_unlocked()
+
+    def _ensure_acquiring_unlocked(self) -> None:
+        if self._thread is None or not self._thread.is_alive():
+            self._start_acquisition_unlocked()
 
     def configure(self, config: PipelineConfig) -> None:
         with self._lock:
@@ -205,6 +222,10 @@ class VideoPipeline:
     def wait_for_jpeg(self, timeout: float = 1.0) -> Optional[bytes]:
         with self._preview_condition:
             self._last_preview_interest_mono = time.monotonic()
+            # Restart if idle-stop already exited (preview poll after remount).
+            self._ensure_acquiring_unlocked()
+            if self._latest_jpeg is not None:
+                return self._latest_jpeg
             self._preview_condition.wait(timeout=timeout)
             return self._latest_jpeg
 
@@ -388,6 +409,8 @@ class VideoPipeline:
         # so a hung DirectShow open cannot leave the UI on "Starting preview...".
         next_camera_retry = time.monotonic() + 0.05
         frames_published = 0
+        camera_black_since: Optional[float] = None
+        idle_stopped = False
 
         try:
             while not self._stop_event.is_set():
@@ -404,8 +427,19 @@ class VideoPipeline:
                     and not remote_connected
                     and (now - last_interest) >= idle_timeout
                 ):
-                    # No preview clients and not recording — free USB/CPU.
-                    break
+                    # Re-check under the lock: a preview poll may have touched interest
+                    # after we sampled it. Exiting anyway would leave acquisition dead
+                    # until the next remount/configure.
+                    with self._lock:
+                        still_idle = (
+                            not self._state.recording
+                            and not self._state.remote_connected
+                            and (time.monotonic() - self._last_preview_interest_mono)
+                            >= idle_timeout
+                        )
+                        if still_idle:
+                            idle_stopped = True
+                            break
 
                 remaining = next_frame_due - now
                 if remaining > 0:
@@ -424,6 +458,7 @@ class VideoPipeline:
                                 pass
                             cap = None
                         source_type = "synthetic"
+                        camera_black_since = None
                         next_camera_retry = time.monotonic() + 1.5
                         with self._lock:
                             self._state.connected = True
@@ -438,11 +473,43 @@ class VideoPipeline:
                         time.sleep(0.05)
                         continue
 
-                if source_type == "camera":
+                # Capture cards can keep delivering black after open until HDMI locks.
+                # Do not publish those — keep synthetic and reopen after a short streak.
+                camera_frame_ok = False
+                if source_type == "camera" and frame is not None and not frame_has_signal(frame):
+                    if camera_black_since is None:
+                        camera_black_since = time.monotonic()
+                    if time.monotonic() - camera_black_since >= CAMERA_BLACK_RETRY_SEC:
+                        if cap is not None:
+                            try:
+                                cap.release()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            cap = None
+                        source_type = "synthetic"
+                        camera_black_since = None
+                        next_camera_retry = time.monotonic() + 0.5
+                        with self._lock:
+                            self._state.connected = True
+                            self._state.warning = (
+                                "Waiting for video signal… showing synthetic until capture locks"
+                            )
+                        frame = self._read_frame(None, "synthetic", width, height)
+                    else:
+                        # Hold synthetic preview rather than flashing black.
+                        frame = self._read_frame(None, "synthetic", width, height)
+                        with self._lock:
+                            self._state.warning = "Waiting for video signal…"
+                elif source_type == "camera":
+                    camera_black_since = None
+                    camera_frame_ok = True
+
+                if camera_frame_ok:
                     with self._lock:
                         if self._state.warning and (
                             "synthetic" in self._state.warning.lower()
                             or "waiting for camera" in self._state.warning.lower()
+                            or "waiting for video signal" in self._state.warning.lower()
                             or "opening capture" in self._state.warning.lower()
                             or "not ready" in self._state.warning.lower()
                             or "disconnected" in self._state.warning.lower()
@@ -519,7 +586,7 @@ class VideoPipeline:
                     try:
                         candidate = open_capture_quick(device_id, resolution)
                         probe = self._read_frame(candidate, "camera", width, height)
-                        if probe is not None:
+                        if probe is not None and frame_has_signal(probe):
                             if cap is not None:
                                 try:
                                     cap.release()
@@ -527,6 +594,7 @@ class VideoPipeline:
                                     pass
                             cap = candidate
                             source_type = "camera"
+                            camera_black_since = None
                             ok2, jpeg2 = cv2.imencode(
                                 ".jpg", probe, [int(cv2.IMWRITE_JPEG_QUALITY), 75]
                             )
@@ -538,6 +606,17 @@ class VideoPipeline:
                                 if ok2:
                                     self._latest_jpeg = jpeg2.tobytes()
                                     self._preview_condition.notify_all()
+                        elif probe is not None:
+                            # Opened but still black — release and retry soon.
+                            try:
+                                candidate.release()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            next_camera_retry = time.monotonic() + 0.75
+                            with self._lock:
+                                self._state.warning = (
+                                    "Waiting for video signal… showing synthetic until capture locks"
+                                )
                         else:
                             try:
                                 candidate.release()
@@ -573,6 +652,11 @@ class VideoPipeline:
                 # thread (join timeout / restart) must not clobber the new loop.
                 if threading.current_thread() is self._thread:
                     self._state.connected = False
+                    if idle_stopped:
+                        # Drop stale frames so the next preview poll waits for a fresh
+                        # start instead of flashing an old black/synthetic JPEG.
+                        self._latest_jpeg = None
+                        self._latest_frame = None
             if cap is not None:
                 try:
                     cap.release()

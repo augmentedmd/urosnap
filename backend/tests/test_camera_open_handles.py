@@ -19,7 +19,11 @@ class FakeCap:
         self.reads += 1
         if FakeCap.open_handles > 1 or self.reads < 4:
             return False, None
-        return True, np.zeros((48, 64, 3), dtype=np.uint8)
+        # Non-black frame — open_capture_quick requires a video signal, not a
+        # no-signal black field from an unlocked capture card.
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[:, :] = (40, 180, 90)
+        return True, frame
 
     def set(self, *args):
         return True

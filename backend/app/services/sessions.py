@@ -313,7 +313,7 @@ class SessionService:
         return True, "Procedure and files deleted." if files_deleted else "Procedure deleted."
 
     def attach_session_for_review(self, session: ProcedureSession) -> None:
-        """Re-bind pipeline directories for an existing session without starting capture if idle."""
+        """Re-bind pipeline directories for an existing session (restarts acquisition if stopped)."""
         path = Path(session.storage_path)
         self.pipeline.configure(
             PipelineConfig(
