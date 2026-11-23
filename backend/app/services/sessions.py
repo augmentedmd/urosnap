@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from datetime import date, datetime
 from pathlib import Path
@@ -272,6 +273,56 @@ class SessionService:
                     detail="Patient demographics added or changed after session start",
                 )
             )
+        if payload.procedure_type is not None:
+            # Safe while recording: procedure type is metadata only — no capture reconfigure.
+            procedure_type = (payload.procedure_type or "").strip() or "Diagnostic cystoscopy"
+            custom_name = (payload.custom_procedure_name or "").strip() or None
+            if procedure_type != "Other / Custom Procedure":
+                custom_name = None
+            session.procedure_type = procedure_type
+            session.custom_procedure_name = custom_name
+
+            proc = (
+                db.query(ProcedureType)
+                .filter(ProcedureType.name == procedure_type)
+                .one_or_none()
+            )
+            if proc:
+                proc.use_count += 1
+            save_custom = bool(payload.save_custom_procedure)
+            if (
+                procedure_type == "Other / Custom Procedure"
+                and save_custom
+                and custom_name
+            ):
+                existing_custom = (
+                    db.query(ProcedureType).filter(ProcedureType.name == custom_name).one_or_none()
+                )
+                if existing_custom is None:
+                    db.add(ProcedureType(name=custom_name, is_custom=True, use_count=1))
+                else:
+                    existing_custom.use_count += 1
+
+            db.add(
+                AuditLog(
+                    action="procedure_type_updated",
+                    actor="desktop",
+                    session_public_id=session.public_id,
+                    detail="Procedure type added or changed after session start",
+                )
+            )
+            # Keep on-disk metadata in sync for reports / session folders.
+            try:
+                session_path = Path(session.storage_path)
+                meta_path = session_path / "metadata" / "session.json"
+                existing: dict = {}
+                if meta_path.exists():
+                    existing = json.loads(meta_path.read_text(encoding="utf-8"))
+                existing["public_id"] = session.public_id
+                existing["procedure_type"] = session.display_procedure_name
+                self.storage.write_metadata(session_path, existing)
+            except Exception:
+                pass
         db.commit()
         db.refresh(session)
         return session
