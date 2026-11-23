@@ -15,13 +15,22 @@ import numpy as np
 from app.schemas.api import CaptureStatus
 from app.services.video.devices import (
     frame_has_signal,
+    frame_is_uniform_black,
     open_capture,
     open_capture_quick,
     parse_resolution,
 )
 
-# After the camera is open, keep retrying if frames stay black this long (no HDMI lock).
+# After the camera is open, keep retrying if frames stay unlocked this long (no HDMI lock).
 CAMERA_BLACK_RETRY_SEC = 2.0
+# Capture-card "No signal" OSDs are informative — reopen less often so we do not thrash EDID.
+CAMERA_OSD_RETRY_SEC = 8.0
+
+_NO_HDMI_WARNING = (
+    "Capture card has no HDMI signal (dongle OSD / black field). "
+    "Check tower power, HDMI cable/port, and that New Session selected the USB "
+    "capture device — the phone-remote QR does not carry video."
+)
 
 
 SnapshotCallback = Callable[[np.ndarray, datetime, str], None]
@@ -473,13 +482,16 @@ class VideoPipeline:
                         time.sleep(0.05)
                         continue
 
-                # Capture cards can keep delivering black after open until HDMI locks.
-                # Do not publish those — keep synthetic and reopen after a short streak.
+                # Capture cards can keep delivering black or a "No signal" OSD until HDMI
+                # locks. Treat both as unlocked. Show OSD chrome (diagnostic) but replace
+                # pure black with synthetic; reopen after a streak.
                 camera_frame_ok = False
                 if source_type == "camera" and frame is not None and not frame_has_signal(frame):
+                    blank = frame_is_uniform_black(frame)
                     if camera_black_since is None:
                         camera_black_since = time.monotonic()
-                    if time.monotonic() - camera_black_since >= CAMERA_BLACK_RETRY_SEC:
+                    retry_after = CAMERA_BLACK_RETRY_SEC if blank else CAMERA_OSD_RETRY_SEC
+                    if time.monotonic() - camera_black_since >= retry_after:
                         if cap is not None:
                             try:
                                 cap.release()
@@ -491,15 +503,15 @@ class VideoPipeline:
                         next_camera_retry = time.monotonic() + 0.5
                         with self._lock:
                             self._state.connected = True
-                            self._state.warning = (
-                                "Waiting for video signal… showing synthetic until capture locks"
-                            )
+                            self._state.warning = _NO_HDMI_WARNING
                         frame = self._read_frame(None, "synthetic", width, height)
                     else:
-                        # Hold synthetic preview rather than flashing black.
-                        frame = self._read_frame(None, "synthetic", width, height)
                         with self._lock:
-                            self._state.warning = "Waiting for video signal…"
+                            self._state.warning = _NO_HDMI_WARNING
+                        # Keep sparse OSD visible so the user can see the dongle status;
+                        # hide empty black fields behind synthetic bars.
+                        if blank:
+                            frame = self._read_frame(None, "synthetic", width, height)
                 elif source_type == "camera":
                     camera_black_since = None
                     camera_frame_ok = True
@@ -510,6 +522,7 @@ class VideoPipeline:
                             "synthetic" in self._state.warning.lower()
                             or "waiting for camera" in self._state.warning.lower()
                             or "waiting for video signal" in self._state.warning.lower()
+                            or "no hdmi signal" in self._state.warning.lower()
                             or "opening capture" in self._state.warning.lower()
                             or "not ready" in self._state.warning.lower()
                             or "disconnected" in self._state.warning.lower()
@@ -607,16 +620,14 @@ class VideoPipeline:
                                     self._latest_jpeg = jpeg2.tobytes()
                                     self._preview_condition.notify_all()
                         elif probe is not None:
-                            # Opened but still black — release and retry soon.
+                            # Opened but still unlocked (black / capture OSD) — release and retry.
                             try:
                                 candidate.release()
                             except Exception:  # noqa: BLE001
                                 pass
                             next_camera_retry = time.monotonic() + 0.75
                             with self._lock:
-                                self._state.warning = (
-                                    "Waiting for video signal… showing synthetic until capture locks"
-                                )
+                                self._state.warning = _NO_HDMI_WARNING
                         else:
                             try:
                                 candidate.release()

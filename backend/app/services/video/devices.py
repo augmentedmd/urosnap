@@ -66,12 +66,36 @@ def _open_attempts(index: int, backend: int) -> Iterator[cv2.VideoCapture]:
         yield cv2.VideoCapture(index + backend)
 
 
-def frame_has_signal(frame, *, min_mean: float = 6.0, min_std: float = 3.0) -> bool:
-    """True when a frame is unlikely to be an unlocked / no-signal black field.
+def frame_is_uniform_black(
+    frame, *, max_mean: float = 6.0, max_std: float = 3.0
+) -> bool:
+    """True for a near-empty field with no capture-card OSD chrome."""
+    if frame is None:
+        return True
+    try:
+        sample = frame[::8, ::8]
+        mean = float(np.mean(sample))
+        std = float(np.std(sample))
+    except Exception:  # noqa: BLE001
+        return True
+    return mean < max_mean and std < max_std
+
+
+def frame_has_signal(
+    frame,
+    *,
+    min_mean: float = 6.0,
+    min_std: float = 3.0,
+    max_dark_fraction: float = 0.90,
+    dark_luma: float = 18.0,
+) -> bool:
+    """True when a frame is unlikely to be an unlocked / no-signal field.
 
     HDMI-to-USB capture sticks often deliver valid-looking black frames for a while
-    after open until the input locks. Treating those as success leaves LivePreview
-    stuck on a black card until the device is reopened.
+    after open until the input locks. Many sticks then switch to an on-screen display
+    (QR code, "No signal, Waiting…", rx/tx counters) that bumps mean/std enough to
+    look like "content" while remaining mostly black. Treating either as success
+    leaves LivePreview stuck until the device is reopened or HDMI actually locks.
     """
     if frame is None:
         return False
@@ -79,7 +103,12 @@ def frame_has_signal(frame, *, min_mean: float = 6.0, min_std: float = 3.0) -> b
         sample = frame[::8, ::8]
         mean = float(np.mean(sample))
         std = float(np.std(sample))
+        # Per-pixel luma proxy (max channel) — OSD chrome is sparse on a black field.
+        luma = sample.max(axis=-1) if sample.ndim == 3 else sample
+        dark_fraction = float(np.mean(luma < dark_luma))
     except Exception:  # noqa: BLE001
+        return False
+    if dark_fraction >= max_dark_fraction:
         return False
     return mean >= min_mean or std >= min_std
 

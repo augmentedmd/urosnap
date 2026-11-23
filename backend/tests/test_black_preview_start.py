@@ -14,13 +14,41 @@ from app.services.video.pipeline import PipelineConfig, VideoPipeline, get_video
 def test_frame_has_signal_rejects_black_and_accepts_content():
     black = np.zeros((120, 160, 3), dtype=np.uint8)
     assert not devices.frame_has_signal(black)
+    assert devices.frame_is_uniform_black(black)
 
     content = np.zeros((120, 160, 3), dtype=np.uint8)
     content[:, :] = (30, 120, 200)
     assert devices.frame_has_signal(content)
+    assert not devices.frame_is_uniform_black(content)
 
     noisy = np.random.randint(0, 40, (120, 160, 3), dtype=np.uint8)
     assert devices.frame_has_signal(noisy)
+
+
+def test_frame_has_signal_rejects_capture_card_osd():
+    """Dongle 'No signal' OSDs (QR + text on black) must not count as HDMI lock."""
+    osd = np.zeros((480, 640, 3), dtype=np.uint8)
+    # Fake QR block + status text + rx/tx counters — sparse chrome on a black field.
+    osd[36:156, 36:156] = 240
+    osd[180:200, 40:320] = 220
+    osd[420:440, 480:620] = 200
+    assert not devices.frame_is_uniform_black(osd)
+    assert not devices.frame_has_signal(osd)
+
+    # Endoscopy-like circular FOV with dark surround should still pass.
+    scope = np.zeros((480, 640, 3), dtype=np.uint8)
+    yy, xx = np.ogrid[:480, :640]
+    circle = (xx - 320) ** 2 + (yy - 240) ** 2 <= 180**2
+    scope[circle] = (40, 110, 90)
+    assert devices.frame_has_signal(scope)
+
+
+def _fake_osd_frame(h: int = 120, w: int = 160) -> np.ndarray:
+    osd = np.zeros((h, w, 3), dtype=np.uint8)
+    osd[8:40, 8:40] = 240
+    osd[50:58, 10:90] = 220
+    osd[100:108, 110:150] = 200
+    return osd
 
 
 def test_warm_read_require_signal_skips_black_then_accepts(monkeypatch):
@@ -32,6 +60,25 @@ def test_warm_read_require_signal_skips_black_then_accepts(monkeypatch):
             self.n += 1
             if self.n < 5:
                 return True, np.zeros((48, 64, 3), dtype=np.uint8)
+            frame = np.zeros((48, 64, 3), dtype=np.uint8)
+            frame[:, :] = (10, 80, 160)
+            return True, frame
+
+    monkeypatch.setattr(devices.time, "sleep", lambda _s: None)
+    frame = devices._warm_read(Cap(), tries=20, delay=0.0, require_signal=True)
+    assert frame is not None
+    assert devices.frame_has_signal(frame)
+
+
+def test_warm_read_require_signal_skips_osd_then_accepts(monkeypatch):
+    class Cap:
+        def __init__(self):
+            self.n = 0
+
+        def read(self):
+            self.n += 1
+            if self.n < 4:
+                return True, _fake_osd_frame(48, 64)
             frame = np.zeros((48, 64, 3), dtype=np.uint8)
             frame[:, :] = (10, 80, 160)
             return True, frame
