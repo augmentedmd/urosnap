@@ -35,6 +35,26 @@ jobs:
         shell: pwsh
         run: .\packaging\build-windows.ps1
 
+      - name: Verify packaged UI
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\dist\OpenSnap-windows.zip")
+          try {
+            $names = $zip.Entries | ForEach-Object { $_.FullName -replace '\\', '/' }
+            $need = @(
+              'OpenSnap/OpenSnap.exe',
+              'OpenSnap/_internal/frontend/dist/index.html',
+              'OpenSnap/frontend/dist/index.html'
+            )
+            foreach ($n in $need) {
+              if ($names -notcontains $n) { throw "Artifact missing required path: $n" }
+            }
+            Write-Host "UI paths present in OpenSnap-windows.zip"
+          } finally {
+            $zip.Dispose()
+          }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

@@ -21,10 +21,23 @@ def test_windowed_exe_logs_to_file(tmp_path, monkeypatch):
 def test_second_launch_opens_existing_instance(monkeypatch):
     opened: list[str] = []
     monkeypatch.setattr(desktop, "_running_opensnap", lambda port: True)
+    monkeypatch.setattr(desktop, "_ui_is_served", lambda port: True)
     monkeypatch.setattr(desktop.webbrowser, "open", opened.append)
     monkeypatch.setattr(desktop.uvicorn.Server, "run", lambda self: (_ for _ in ()).throw(AssertionError("started twice")))
     desktop.run(port=8999)
     assert opened == ["http://127.0.0.1:8999"]
+
+
+def test_second_launch_rejects_api_without_ui(monkeypatch):
+    monkeypatch.setattr(desktop, "_running_opensnap", lambda port: True)
+    monkeypatch.setattr(desktop, "_ui_is_served", lambda port: False)
+    monkeypatch.setattr(desktop, "_show_error", lambda message: None)
+    monkeypatch.setattr(desktop.uvicorn.Server, "run", lambda self: (_ for _ in ()).throw(AssertionError("started twice")))
+    try:
+        desktop.run(port=8999)
+        raise AssertionError("expected OSError")
+    except OSError as exc:
+        assert "without the UI" in str(exc)
 
 
 def test_shutdown_endpoint(client):

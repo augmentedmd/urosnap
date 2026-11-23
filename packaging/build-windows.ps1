@@ -27,6 +27,20 @@ if (-not (Test-Path (Join-Path $Dist "OpenSnap.exe"))) {
   throw "OpenSnap.exe was not produced"
 }
 
+# PyInstaller onedir places datas under _internal; also mirror beside the EXE so
+# path resolution stays correct if _MEIPASS lookup ever misses.
+$BundledUi = Join-Path $Dist "_internal\frontend\dist\index.html"
+if (-not (Test-Path $BundledUi)) {
+  throw "Packaged UI missing at $BundledUi — npm frontend build was not bundled"
+}
+$UiBesideExe = Join-Path $Dist "frontend"
+if (Test-Path $UiBesideExe) { Remove-Item $UiBesideExe -Recurse -Force }
+Copy-Item -Recurse (Join-Path $Dist "_internal\frontend") $UiBesideExe
+if (-not (Test-Path (Join-Path $UiBesideExe "dist\index.html"))) {
+  throw "Failed to mirror UI beside OpenSnap.exe"
+}
+Write-Host "Verified UI at _internal\frontend\dist and frontend\dist"
+
 # Optional ffmpeg next to the EXE improves MP4 finalization.
 $Ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 if ($Ffmpeg) {
@@ -40,5 +54,20 @@ $Zip = Join-Path $Root "dist\OpenSnap-windows.zip"
 New-Item -ItemType Directory -Force -Path (Split-Path $Zip) | Out-Null
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 Compress-Archive -Path $Dist -DestinationPath $Zip
+
+# Fail the build if the zip somehow omits the React shell.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$ZipFile = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+try {
+  $HasIndex = $ZipFile.Entries | Where-Object {
+    $_.FullName -replace '\\', '/' -match '(^|/)frontend/dist/index\.html$'
+  }
+  if (-not $HasIndex) {
+    throw "OpenSnap-windows.zip is missing frontend/dist/index.html"
+  }
+} finally {
+  $ZipFile.Dispose()
+}
+
 Write-Host "==> Done: $Zip"
-Write-Host "Extract and double-click OpenSnap\OpenSnap.exe"
+Write-Host "Extract the whole OpenSnap folder and double-click OpenSnap\OpenSnap.exe"
