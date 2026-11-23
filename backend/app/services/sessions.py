@@ -256,6 +256,22 @@ class SessionService:
             session.physician = payload.physician
         if payload.location is not None:
             session.location = payload.location
+        if payload.patient is not None:
+            # Safe while recording: patient rows are independent of the capture pipeline.
+            unknown_dob = date(1900, 1, 1)
+            patient = session.patient
+            patient.first_name = (payload.patient.first_name or "").strip()
+            patient.last_name = (payload.patient.last_name or "").strip()
+            patient.date_of_birth = payload.patient.date_of_birth or unknown_dob
+            patient.medical_record_number = (payload.patient.medical_record_number or "").strip()
+            db.add(
+                AuditLog(
+                    action="patient_demographics_updated",
+                    actor="desktop",
+                    session_public_id=session.public_id,
+                    detail="Patient demographics added or changed after session start",
+                )
+            )
         db.commit()
         db.refresh(session)
         return session

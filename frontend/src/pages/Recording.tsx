@@ -6,6 +6,7 @@ import { Camera, Images, Square, Circle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDuration } from '@/lib/utils'
 import { LivePreview } from '@/components/LivePreview'
+import { PatientDemographicsEditor } from '@/components/PatientDemographicsEditor'
 import { Badge, Button, Card, PageHeader, Select, StatusDot } from '@/components/ui'
 
 const INTERVALS = [1, 2, 3, 5, 10, 15, 30, 60]
@@ -135,6 +136,14 @@ export function Recording() {
         </Card>
 
         <div className="space-y-4 animate-fade-up">
+          {session.data ? (
+            <PatientDemographicsEditor
+              sessionId={sessionId}
+              patient={session.data.patient}
+              compact
+            />
+          ) : null}
+
           <Card className="space-y-3 p-5">
             <h2 className="text-lg font-semibold">Status</h2>
             <div className="flex flex-wrap gap-2">
