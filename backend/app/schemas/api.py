@@ -78,6 +78,10 @@ class SessionUpdate(BaseModel):
     location: Optional[str] = None
     # Full replace of patient demographics when provided (add or change after start).
     patient: Optional[PatientCreate] = None
+    # Procedure type can be added/changed after start (safe while recording).
+    procedure_type: Optional[str] = Field(default=None, max_length=200)
+    custom_procedure_name: Optional[str] = Field(default=None, max_length=200)
+    save_custom_procedure: Optional[bool] = None
 
     @field_validator("snapshot_interval_sec")
     @classmethod

@@ -179,6 +179,84 @@ def test_custom_procedure_saved(client):
     assert any(t["name"] == "Ureteroscopy stone basketing" and t["is_custom"] for t in types)
 
 
+def test_change_procedure_type_after_session_start(client):
+    created = client.post("/api/sessions", json=_session_payload())
+    assert created.status_code == 200
+    sid = created.json()["public_id"]
+    assert created.json()["procedure_type"] == "Diagnostic cystoscopy"
+    assert created.json()["display_procedure_name"] == "Diagnostic cystoscopy"
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={"procedure_type": "Prostate biopsy"},
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["procedure_type"] == "Prostate biopsy"
+    assert body["display_procedure_name"] == "Prostate biopsy"
+    assert body["custom_procedure_name"] is None
+
+    listed = client.get("/api/sessions", params={"procedure_type": "Prostate biopsy"})
+    assert listed.status_code == 200
+    assert any(s["public_id"] == sid for s in listed.json())
+
+
+def test_change_to_custom_procedure_after_start(client):
+    created = client.post("/api/sessions", json=_session_payload())
+    sid = created.json()["public_id"]
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={
+            "procedure_type": "Other / Custom Procedure",
+            "custom_procedure_name": "Post-start custom cysto",
+            "save_custom_procedure": True,
+        },
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["procedure_type"] == "Other / Custom Procedure"
+    assert body["custom_procedure_name"] == "Post-start custom cysto"
+    assert body["display_procedure_name"] == "Post-start custom cysto"
+
+    types = client.get("/api/procedure-types").json()
+    assert any(t["name"] == "Post-start custom cysto" and t["is_custom"] for t in types)
+
+    # Switching away from custom clears the custom name.
+    cleared = client.patch(
+        f"/api/sessions/{sid}",
+        json={"procedure_type": "Transrectal ultrasound"},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["procedure_type"] == "Transrectal ultrasound"
+    assert cleared.json()["custom_procedure_name"] is None
+    assert cleared.json()["display_procedure_name"] == "Transrectal ultrasound"
+
+
+def test_procedure_type_update_safe_while_recording(client):
+    created = client.post("/api/sessions", json=_session_payload())
+    sid = created.json()["public_id"]
+    start = client.post(f"/api/sessions/{sid}/recording/start")
+    assert start.status_code == 200
+    assert start.json()["state"] == "recording"
+
+    patched = client.patch(
+        f"/api/sessions/{sid}",
+        json={"procedure_type": "SpaceOAR and fiducial marker placement"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["procedure_type"] == "SpaceOAR and fiducial marker placement"
+    assert patched.json()["display_procedure_name"] == "SpaceOAR and fiducial marker placement"
+    assert patched.json()["status"] == "recording"
+
+    status = client.get(f"/api/sessions/{sid}/recording/status")
+    assert status.status_code == 200
+    assert status.json()["state"] == "recording"
+
+    stop = client.post(f"/api/sessions/{sid}/recording/stop")
+    assert stop.status_code == 200
+
+
 def test_frame_rate_validation(client):
     payload = _session_payload(requested_fps=7)
     res = client.post("/api/sessions", json=payload)

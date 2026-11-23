@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import { formatDuration } from '@/lib/utils'
 import { LivePreview } from '@/components/LivePreview'
 import { PatientDemographicsEditor } from '@/components/PatientDemographicsEditor'
+import { ProcedureTypeEditor } from '@/components/ProcedureTypeEditor'
 import { Badge, Button, Card, PageHeader, Select, StatusDot } from '@/components/ui'
 
 const INTERVALS = [1, 2, 3, 5, 10, 15, 30, 60]
@@ -140,6 +141,15 @@ export function Recording() {
             <PatientDemographicsEditor
               sessionId={sessionId}
               patient={session.data.patient}
+              compact
+            />
+          ) : null}
+
+          {session.data ? (
+            <ProcedureTypeEditor
+              sessionId={sessionId}
+              procedureType={session.data.procedure_type}
+              customProcedureName={session.data.custom_procedure_name}
               compact
             />
           ) : null}
