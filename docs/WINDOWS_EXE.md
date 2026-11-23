@@ -3,9 +3,11 @@
 Physicians should not need Git, Python, or Cloudflare. The desktop package is a double-click app:
 
 1. Download **OpenSnap-windows.zip** from the GitHub Release (or CI artifact)
-2. Extract the folder
+2. Extract the **entire** `OpenSnap` folder (keep `_internal` next to `OpenSnap.exe` — do not run the EXE from inside the zip)
 3. Double-click **`OpenSnap.exe`**
 4. The default browser opens to `http://127.0.0.1:8000` with the full UI + local recorder
+
+If the browser shows JSON saying **Frontend not built yet**, port 8000 is usually already taken by an old `uvicorn`/source install without the UI. Quit that process in Task Manager, then start `OpenSnap.exe` again.
 
 All video, snapshots, patient data, and PDFs stay on that Windows PC under:
 

@@ -61,7 +61,25 @@ def _running_opensnap(port: int) -> bool:
         return False
 
 
+def _ui_is_served(port: int) -> bool:
+    """True when GET / returns the React shell (not the 'Frontend not built yet' JSON)."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.5) as res:
+            content_type = (res.headers.get("Content-Type") or "").lower()
+            body = res.read(512)
+            if "text/html" in content_type:
+                return True
+            if b"Frontend not built" in body:
+                return False
+            head = body.lstrip()[:64].lower()
+            return head.startswith(b"<!doctype") or head.startswith(b"<html")
+    except Exception:
+        return False
+
+
 def run(host: str | None = None, port: int | None = None, open_browser: bool = True) -> None:
+    from app.paths import frontend_dist_dir
+
     settings = get_settings()
     _redirect_output_if_windowed(settings.data_dir / "logs")
     # Listen on the LAN so the iPhone remote can connect. LanRemoteOnlyMiddleware
@@ -75,12 +93,33 @@ def run(host: str | None = None, port: int | None = None, open_browser: bool = T
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     if _running_opensnap(port):
-        logger.info("OpenSnap is already running on %s; opening it", url)
-        if open_browser:
-            webbrowser.open(url)
-        return
+        if _ui_is_served(port):
+            logger.info("OpenSnap is already running on %s; opening it", url)
+            if open_browser:
+                webbrowser.open(url)
+            return
+        message = (
+            f"Port {port} already has OpenSnap API without the UI "
+            f"(often a leftover `uvicorn` from a source install).\n\n"
+            "Quit that process in Task Manager, then start OpenSnap.exe again."
+        )
+        logger.error(message.replace("\n\n", " "))
+        _show_error(message)
+        raise OSError(message)
 
-    logger.info("Starting OpenSnap on %s (data: %s)", url, settings.data_dir)
+    ui_dir = frontend_dist_dir()
+    index = ui_dir / "index.html"
+    if not index.is_file():
+        message = (
+            f"OpenSnap UI is missing at:\n{index}\n\n"
+            "Re-extract the full OpenSnap folder from OpenSnap-windows.zip "
+            "(keep the _internal folder next to OpenSnap.exe)."
+        )
+        logger.error("UI missing: %s", index)
+        _show_error(message)
+        raise OSError(message)
+
+    logger.info("Starting OpenSnap on %s (data: %s, ui: %s)", url, settings.data_dir, ui_dir)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.sessions_dir.mkdir(parents=True, exist_ok=True)
 
