@@ -77,6 +77,22 @@ Production deployment should use an institution-approved service account, restri
 
 Simulation mode (synthetic pattern / sample video / webcam) can be used without the endoscopy tower.
 
+### “No signal” / QR code on the live preview
+
+If LivePreview shows a mostly black screen with a QR code, “more information”, “No signal, Waiting…”, and rx/tx counters, that image is the **HDMI-to-USB capture dongle’s own OSD**, not OpenSnap UI and not the iPhone remote pairing QR.
+
+It means OpenSnap opened the USB capture device successfully, but the dongle has **no locked HDMI input**. Video never travels over the phone remote — only HDMI → capture stick → PC.
+
+Recovery checklist:
+
+1. Power on the endoscopy tower / source and confirm its HDMI (or DVI-HDMI) output is active.
+2. Reseat the HDMI cable at both ends; try a different cable or port if available.
+3. Confirm the capture stick’s HDMI-in LED (if any) and that Windows Camera / Device Manager still lists the UVC device.
+4. In OpenSnap → New Session, pick the USB capture device (not “Synthetic pattern”). Wrong index after replug is common — refresh devices / reselect by name.
+5. Unplug the capture stick USB for 5 seconds, replug into a USB 3 port directly on the PC (avoid unpowered hubs), then start a new session.
+6. If the source uses HDCP-only output, use a non-HDCP / specialty output or an approved splitter — many UVC sticks will stay on “No signal” under HDCP.
+7. Distinguish QRs: Recording page “iPhone remote” QR pairs the phone for **buttons only**; the preview OSD QR is the dongle saying HDMI is unlocked.
+
 ## iPhone remote networking
 
 The phone cannot reach `localhost` on the Windows PC. Use the PC’s LAN IP, e.g. `https://192.168.x.x:8000/remote/<token>`.
