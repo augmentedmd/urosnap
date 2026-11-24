@@ -3,7 +3,7 @@
 Physicians should not need Git, Python, or Cloudflare. The desktop package is a double-click app:
 
 1. Download **OpenSnap-windows.zip** from the Cloudflare UI (**Download Windows package**, path `/download/windows`) or from the GitHub Release latest asset
-2. Extract the **entire** `OpenSnap` folder (keep `_internal` next to `OpenSnap.exe` — do not run the EXE from inside the zip)
+2. Extract the zip — **`OpenSnap.exe`** and **`_internal`** appear at the top level (do not run the EXE from inside the zip)
 3. Double-click **`OpenSnap.exe`**
 4. The default browser opens to `http://127.0.0.1:8000` with the full UI + local recorder
 

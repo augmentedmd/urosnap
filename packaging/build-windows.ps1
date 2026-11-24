@@ -53,21 +53,32 @@ if ($Ffmpeg) {
 $Zip = Join-Path $Root "dist\OpenSnap-windows.zip"
 New-Item -ItemType Directory -Force -Path (Split-Path $Zip) | Out-Null
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
-Compress-Archive -Path $Dist -DestinationPath $Zip
+# Zip *contents* of the onedir folder so extract yields OpenSnap.exe + deps at
+# the archive root (no nested OpenSnap/ wrapper folder).
+Compress-Archive -Path (Join-Path $Dist '*') -DestinationPath $Zip
 
-# Fail the build if the zip somehow omits the React shell.
+# Fail the build if the zip somehow omits the React shell or nests under OpenSnap/.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $ZipFile = [System.IO.Compression.ZipFile]::OpenRead($Zip)
 try {
-  $HasIndex = $ZipFile.Entries | Where-Object {
-    $_.FullName -replace '\\', '/' -match '(^|/)frontend/dist/index\.html$'
+  $Names = $ZipFile.Entries | ForEach-Object { $_.FullName -replace '\\', '/' }
+  $Need = @(
+    'OpenSnap.exe',
+    '_internal/frontend/dist/index.html',
+    'frontend/dist/index.html'
+  )
+  foreach ($n in $Need) {
+    if ($Names -notcontains $n) {
+      throw "OpenSnap-windows.zip is missing required top-level path: $n"
+    }
   }
-  if (-not $HasIndex) {
-    throw "OpenSnap-windows.zip is missing frontend/dist/index.html"
+  $Nested = $Names | Where-Object { $_ -like 'OpenSnap/*' -or $_ -eq 'OpenSnap/' }
+  if ($Nested) {
+    throw "OpenSnap-windows.zip still nests under OpenSnap/ — expected flat layout"
   }
 } finally {
   $ZipFile.Dispose()
 }
 
 Write-Host "==> Done: $Zip"
-Write-Host "Extract the whole OpenSnap folder and double-click OpenSnap\OpenSnap.exe"
+Write-Host "Extract the zip and double-click OpenSnap.exe (keep _internal beside it)"

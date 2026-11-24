@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConnectionGate } from '@/components/ConnectionGate'
 import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
 import { NewSession } from '@/pages/NewSession'
@@ -26,13 +25,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/remote/:token" element={<Remote />} />
-          <Route
-            element={
-              <ConnectionGate>
-                <Layout />
-              </ConnectionGate>
-            }
-          >
+          <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/sessions/new" element={<NewSession />} />
             <Route path="/sessions" element={<Sessions />} />
