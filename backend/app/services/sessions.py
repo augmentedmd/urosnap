@@ -26,15 +26,16 @@ from app.schemas.api import SessionCreate, SessionUpdate
 from app.services.pdf_report import PdfReportGenerator, density_warning
 from app.services.storage import StorageManager, generate_session_public_id
 from app.services.video.pipeline import PipelineConfig, get_video_pipeline
+from app.text_case import (
+    CUSTOM_PROCEDURE_TYPE,
+    DEFAULT_PROCEDURE_TYPE,
+    PREDEFINED_PROCEDURES,
+    normalize_procedure_name,
+    title_case,
+)
 
-
-PREDEFINED_PROCEDURES = [
-    "Prostate biopsy",
-    "Diagnostic cystoscopy",
-    "Transrectal ultrasound",
-    "SpaceOAR and fiducial marker placement",
-    "Other / Custom Procedure",
-]
+# Re-export for callers/tests that imported from this module.
+__all__ = ["PREDEFINED_PROCEDURES", "SessionService", "get_session_service"]
 
 
 class SessionService:
@@ -44,10 +45,49 @@ class SessionService:
         self.pipeline = get_video_pipeline()
 
     def seed_procedure_types(self, db: Session) -> None:
-        existing = {p.name for p in db.query(ProcedureType).all()}
+        """Ensure catalog + stored session names use Title Case."""
+        # Normalize session fields first so renames below stay consistent.
+        for session in db.query(ProcedureSession).all():
+            if session.procedure_type:
+                session.procedure_type = title_case(session.procedure_type)
+            if session.custom_procedure_name:
+                session.custom_procedure_name = title_case(session.custom_procedure_name)
+
+        # Merge catalog rows that only differed by casing.
+        by_canonical: dict[str, ProcedureType] = {}
+        for row in list(db.query(ProcedureType).all()):
+            canonical = title_case(row.name)
+            keeper = by_canonical.get(canonical)
+            if keeper is None:
+                if row.name != canonical:
+                    row.name = canonical
+                by_canonical[canonical] = row
+                continue
+            keeper.use_count += row.use_count
+            if not row.is_custom:
+                keeper.is_custom = False
+            db.delete(row)
+
         for name in PREDEFINED_PROCEDURES:
-            if name not in existing:
-                db.add(ProcedureType(name=name, is_custom=False))
+            if name not in by_canonical:
+                row = ProcedureType(name=name, is_custom=False)
+                db.add(row)
+                by_canonical[name] = row
+
+        # Preferred procedure type in settings.
+        from app.models.entities import AppSetting
+
+        pref = db.query(AppSetting).filter(AppSetting.key == "preferred_procedure_type").one_or_none()
+        if pref is not None:
+            try:
+                raw = json.loads(pref.value)
+            except (TypeError, json.JSONDecodeError):
+                raw = None
+            if isinstance(raw, str) and raw.strip():
+                normalized = title_case(raw.strip())
+                if normalized != raw:
+                    pref.value = json.dumps(normalized)
+
         db.commit()
 
     def reconcile_stale_recordings(self, db: Session) -> int:
@@ -86,9 +126,11 @@ class SessionService:
 
     def create_session(self, db: Session, payload: SessionCreate) -> ProcedureSession:
         # No fields are required to start. Fill safe blanks so recording can proceed.
-        procedure_type = (payload.procedure_type or "").strip() or "Diagnostic cystoscopy"
-        custom_name = (payload.custom_procedure_name or "").strip() or None
-        if procedure_type != "Other / Custom Procedure":
+        procedure_type = normalize_procedure_name(
+            payload.procedure_type, default=DEFAULT_PROCEDURE_TYPE
+        )
+        custom_name = normalize_procedure_name(payload.custom_procedure_name) or None
+        if procedure_type != CUSTOM_PROCEDURE_TYPE:
             custom_name = None
 
         # Refresh storage root from settings (folder picker may have changed it).
@@ -143,11 +185,7 @@ class SessionService:
         )
         if proc:
             proc.use_count += 1
-        if (
-            procedure_type == "Other / Custom Procedure"
-            and payload.save_custom_procedure
-            and custom_name
-        ):
+        if procedure_type == CUSTOM_PROCEDURE_TYPE and payload.save_custom_procedure and custom_name:
             existing_custom = (
                 db.query(ProcedureType).filter(ProcedureType.name == custom_name).one_or_none()
             )
@@ -218,6 +256,7 @@ class SessionService:
         self.reconcile_stale_recordings(db)
         query = db.query(ProcedureSession).options(joinedload(ProcedureSession.patient))
         if procedure_type:
+            procedure_type = normalize_procedure_name(procedure_type) or procedure_type
             query = query.filter(
                 or_(
                     ProcedureSession.procedure_type == procedure_type,
@@ -275,9 +314,11 @@ class SessionService:
             )
         if payload.procedure_type is not None:
             # Safe while recording: procedure type is metadata only — no capture reconfigure.
-            procedure_type = (payload.procedure_type or "").strip() or "Diagnostic cystoscopy"
-            custom_name = (payload.custom_procedure_name or "").strip() or None
-            if procedure_type != "Other / Custom Procedure":
+            procedure_type = normalize_procedure_name(
+                payload.procedure_type, default=DEFAULT_PROCEDURE_TYPE
+            )
+            custom_name = normalize_procedure_name(payload.custom_procedure_name) or None
+            if procedure_type != CUSTOM_PROCEDURE_TYPE:
                 custom_name = None
             session.procedure_type = procedure_type
             session.custom_procedure_name = custom_name
@@ -290,11 +331,7 @@ class SessionService:
             if proc:
                 proc.use_count += 1
             save_custom = bool(payload.save_custom_procedure)
-            if (
-                procedure_type == "Other / Custom Procedure"
-                and save_custom
-                and custom_name
-            ):
+            if procedure_type == CUSTOM_PROCEDURE_TYPE and save_custom and custom_name:
                 existing_custom = (
                     db.query(ProcedureType).filter(ProcedureType.name == custom_name).one_or_none()
                 )

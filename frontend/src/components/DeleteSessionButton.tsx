@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { api, type SessionSummary } from "@/lib/api";
+import { titleCase } from "@/lib/titleCase";
 import { formatDate } from "@/lib/utils";
 import { Button, Card } from "@/components/ui";
 
@@ -61,7 +62,7 @@ export function DeleteSessionButton({
                     Delete this procedure?
                   </h2>
                   <p className="text-sm text-[var(--color-muted)]">
-                    {session.patient_name} · {session.display_procedure_name} ·{" "}
+                    {session.patient_name} · {titleCase(session.display_procedure_name)} ·{" "}
                     {formatDate(session.procedure_date)}
                   </p>
                   <p className="text-sm">

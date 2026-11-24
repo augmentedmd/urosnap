@@ -111,9 +111,11 @@ class ProcedureSession(Base):
 
     @property
     def display_procedure_name(self) -> str:
-        if self.procedure_type == "Other / Custom Procedure" and self.custom_procedure_name:
-            return self.custom_procedure_name
-        return self.procedure_type
+        from app.text_case import CUSTOM_PROCEDURE_TYPE, title_case
+
+        if self.procedure_type == CUSTOM_PROCEDURE_TYPE and self.custom_procedure_name:
+            return title_case(self.custom_procedure_name)
+        return title_case(self.procedure_type)
 
 
 class Recording(Base):

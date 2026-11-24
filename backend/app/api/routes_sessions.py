@@ -457,9 +457,11 @@ def download_report(report_id: int, db: Session = Depends(get_db)) -> FileRespon
 
 @router.get("/procedure-types")
 def procedure_types(db: Session = Depends(get_db)) -> list[dict]:
+    from app.text_case import title_case
+
     rows = db.query(ProcedureType).order_by(ProcedureType.is_custom.asc(), ProcedureType.name.asc()).all()
     return [
-        {"id": r.id, "name": r.name, "is_custom": r.is_custom, "use_count": r.use_count}
+        {"id": r.id, "name": title_case(r.name), "is_custom": r.is_custom, "use_count": r.use_count}
         for r in rows
     ]
 

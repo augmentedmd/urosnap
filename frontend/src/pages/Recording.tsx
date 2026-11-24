@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Camera, Images, Square, Circle } from 'lucide-react'
 import { api } from '@/lib/api'
+import { titleCase } from '@/lib/titleCase'
 import { formatDuration } from '@/lib/utils'
 import { LivePreview } from '@/components/LivePreview'
 import { PatientDemographicsEditor } from '@/components/PatientDemographicsEditor'
@@ -77,7 +78,7 @@ export function Recording() {
         title="Active Recording"
         subtitle={
           session.data
-            ? `${session.data.display_procedure_name} · ${session.data.patient_name}`
+            ? `${titleCase(session.data.display_procedure_name)} · ${session.data.patient_name}`
             : 'Loading session…'
         }
         actions={

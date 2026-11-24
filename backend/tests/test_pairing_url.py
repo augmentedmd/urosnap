@@ -21,7 +21,7 @@ def test_create_pairing_accepts_cloudflare_ui_base(client):
             "date_of_birth": "1990-01-01",
             "medical_record_number": "CF-1",
         },
-        "procedure_type": "Diagnostic cystoscopy",
+        "procedure_type": "Diagnostic Cystoscopy",
         "physician": "Dr. Test",
         "location": "OR",
         "procedure_date": date.today().isoformat(),

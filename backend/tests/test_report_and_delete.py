@@ -18,7 +18,7 @@ def _create(client, **overrides) -> dict:
             "date_of_birth": "1980-01-05",
             "medical_record_number": "TEST-MRN-9",
         },
-        "procedure_type": "Diagnostic cystoscopy",
+        "procedure_type": "Diagnostic Cystoscopy",
         "physician": "Dr. Hidden Urologist",
         "location": "Suite 2",
         "procedure_date": "2026-11-03",
@@ -66,6 +66,9 @@ def test_title_case():
     assert title_case("Diagnostic cystoscopy") == "Diagnostic Cystoscopy"
     assert title_case("SpaceOAR and fiducial marker placement") == "SpaceOAR and Fiducial Marker Placement"
     assert title_case("Other / Custom Procedure") == "Other / Custom Procedure"
+    assert title_case("cystoscopy with biopsy") == "Cystoscopy With Biopsy"
+    assert title_case("CYSTOSCOPY WITH BIOPSY") == "Cystoscopy With Biopsy"
+    assert title_case("Diagnostic Cystoscopy") == "Diagnostic Cystoscopy"
 
 
 def _pdf_text(client, sid: str, notes: str) -> tuple[PdfReader, str]:

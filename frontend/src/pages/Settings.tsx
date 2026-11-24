@@ -11,6 +11,7 @@ import {
   setStoredServiceUrl,
   setStoredUiBaseUrl,
 } from '@/lib/runtime'
+import { titleCase } from '@/lib/titleCase'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
 
 const empty: SettingsType = {
@@ -226,7 +227,7 @@ export function SettingsPage() {
               <option value="">—</option>
               {(procedures.data ?? []).map((p) => (
                 <option key={p.id} value={p.name}>
-                  {p.name}
+                  {titleCase(p.name)}
                 </option>
               ))}
             </Select>

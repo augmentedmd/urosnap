@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type SessionDetail } from '@/lib/api'
+import { titleCase } from '@/lib/titleCase'
 import { Button, Card, Field, Input, Select } from '@/components/ui'
 
 const CUSTOM = 'Other / Custom Procedure'
@@ -13,7 +14,7 @@ type FormState = {
 
 function fromSession(session?: Pick<SessionDetail, 'procedure_type' | 'custom_procedure_name'> | null): FormState {
   return {
-    procedure_type: session?.procedure_type || 'Diagnostic cystoscopy',
+    procedure_type: session?.procedure_type || 'Diagnostic Cystoscopy',
     custom_procedure_name: session?.custom_procedure_name || '',
     save_custom_procedure: false,
   }
@@ -34,7 +35,7 @@ export function ProcedureTypeEditor({
   const procedures = useQuery({ queryKey: ['procedures'], queryFn: api.procedureTypes })
   const [form, setForm] = useState<FormState>(() =>
     fromSession({
-      procedure_type: procedureType || 'Diagnostic cystoscopy',
+      procedure_type: procedureType || 'Diagnostic Cystoscopy',
       custom_procedure_name: customProcedureName || null,
     }),
   )
@@ -43,7 +44,7 @@ export function ProcedureTypeEditor({
   useEffect(() => {
     setForm(
       fromSession({
-        procedure_type: procedureType || 'Diagnostic cystoscopy',
+        procedure_type: procedureType || 'Diagnostic Cystoscopy',
         custom_procedure_name: customProcedureName || null,
       }),
     )
@@ -54,7 +55,7 @@ export function ProcedureTypeEditor({
   const save = useMutation({
     mutationFn: () =>
       api.updateSession(sessionId, {
-        procedure_type: form.procedure_type || 'Diagnostic cystoscopy',
+        procedure_type: form.procedure_type || 'Diagnostic Cystoscopy',
         custom_procedure_name: isCustom ? form.custom_procedure_name || null : null,
         save_custom_procedure: isCustom && form.save_custom_procedure,
       }),
@@ -106,7 +107,7 @@ export function ProcedureTypeEditor({
           >
             {options.map((p) => (
               <option key={p.id} value={p.name}>
-                {p.name}
+                {titleCase(p.name)}
                 {p.is_custom ? ' (saved custom)' : ''}
               </option>
             ))}

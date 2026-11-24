@@ -15,7 +15,7 @@ def _session_payload(**overrides):
             "date_of_birth": "1980-01-15",
             "medical_record_number": "TEST-MRN-001",
         },
-        "procedure_type": "Diagnostic cystoscopy",
+        "procedure_type": "Diagnostic Cystoscopy",
         "custom_procedure_name": None,
         "save_custom_procedure": False,
         "physician": "Dr. Test",
@@ -45,7 +45,7 @@ def test_procedure_types_seeded(client):
     res = client.get("/api/procedure-types")
     assert res.status_code == 200
     names = {p["name"] for p in res.json()}
-    assert "Prostate biopsy" in names
+    assert "Prostate Biopsy" in names
     assert "Other / Custom Procedure" in names
 
 
@@ -175,28 +175,30 @@ def test_custom_procedure_saved(client):
     )
     res = client.post("/api/sessions", json=payload)
     assert res.status_code == 200
+    assert res.json()["custom_procedure_name"] == "Ureteroscopy Stone Basketing"
+    assert res.json()["display_procedure_name"] == "Ureteroscopy Stone Basketing"
     types = client.get("/api/procedure-types").json()
-    assert any(t["name"] == "Ureteroscopy stone basketing" and t["is_custom"] for t in types)
+    assert any(t["name"] == "Ureteroscopy Stone Basketing" and t["is_custom"] for t in types)
 
 
 def test_change_procedure_type_after_session_start(client):
     created = client.post("/api/sessions", json=_session_payload())
     assert created.status_code == 200
     sid = created.json()["public_id"]
-    assert created.json()["procedure_type"] == "Diagnostic cystoscopy"
-    assert created.json()["display_procedure_name"] == "Diagnostic cystoscopy"
+    assert created.json()["procedure_type"] == "Diagnostic Cystoscopy"
+    assert created.json()["display_procedure_name"] == "Diagnostic Cystoscopy"
 
     patched = client.patch(
         f"/api/sessions/{sid}",
-        json={"procedure_type": "Prostate biopsy"},
+        json={"procedure_type": "Prostate Biopsy"},
     )
     assert patched.status_code == 200
     body = patched.json()
-    assert body["procedure_type"] == "Prostate biopsy"
-    assert body["display_procedure_name"] == "Prostate biopsy"
+    assert body["procedure_type"] == "Prostate Biopsy"
+    assert body["display_procedure_name"] == "Prostate Biopsy"
     assert body["custom_procedure_name"] is None
 
-    listed = client.get("/api/sessions", params={"procedure_type": "Prostate biopsy"})
+    listed = client.get("/api/sessions", params={"procedure_type": "Prostate Biopsy"})
     assert listed.status_code == 200
     assert any(s["public_id"] == sid for s in listed.json())
 
@@ -209,28 +211,28 @@ def test_change_to_custom_procedure_after_start(client):
         f"/api/sessions/{sid}",
         json={
             "procedure_type": "Other / Custom Procedure",
-            "custom_procedure_name": "Post-start custom cysto",
+            "custom_procedure_name": "post-start custom cysto",
             "save_custom_procedure": True,
         },
     )
     assert patched.status_code == 200
     body = patched.json()
     assert body["procedure_type"] == "Other / Custom Procedure"
-    assert body["custom_procedure_name"] == "Post-start custom cysto"
-    assert body["display_procedure_name"] == "Post-start custom cysto"
+    assert body["custom_procedure_name"] == "Post-start Custom Cysto"
+    assert body["display_procedure_name"] == "Post-start Custom Cysto"
 
     types = client.get("/api/procedure-types").json()
-    assert any(t["name"] == "Post-start custom cysto" and t["is_custom"] for t in types)
+    assert any(t["name"] == "Post-start Custom Cysto" and t["is_custom"] for t in types)
 
     # Switching away from custom clears the custom name.
     cleared = client.patch(
         f"/api/sessions/{sid}",
-        json={"procedure_type": "Transrectal ultrasound"},
+        json={"procedure_type": "Transrectal Ultrasound"},
     )
     assert cleared.status_code == 200
-    assert cleared.json()["procedure_type"] == "Transrectal ultrasound"
+    assert cleared.json()["procedure_type"] == "Transrectal Ultrasound"
     assert cleared.json()["custom_procedure_name"] is None
-    assert cleared.json()["display_procedure_name"] == "Transrectal ultrasound"
+    assert cleared.json()["display_procedure_name"] == "Transrectal Ultrasound"
 
 
 def test_procedure_type_update_safe_while_recording(client):
@@ -242,11 +244,11 @@ def test_procedure_type_update_safe_while_recording(client):
 
     patched = client.patch(
         f"/api/sessions/{sid}",
-        json={"procedure_type": "SpaceOAR and fiducial marker placement"},
+        json={"procedure_type": "SpaceOAR and Fiducial Marker Placement"},
     )
     assert patched.status_code == 200
-    assert patched.json()["procedure_type"] == "SpaceOAR and fiducial marker placement"
-    assert patched.json()["display_procedure_name"] == "SpaceOAR and fiducial marker placement"
+    assert patched.json()["procedure_type"] == "SpaceOAR and Fiducial Marker Placement"
+    assert patched.json()["display_procedure_name"] == "SpaceOAR and Fiducial Marker Placement"
     assert patched.json()["status"] == "recording"
 
     status = client.get(f"/api/sessions/{sid}/recording/status")
@@ -398,7 +400,7 @@ def test_end_to_end_simulated_workflow(client):
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
         assert "Mount Sinai" in text or "Synthetic" in text
         assert "Alex" in text or "SYNTHETIC" in text.upper() or "Synthetic" in text
-        assert "Diagnostic cystoscopy" in text
+        assert "Diagnostic Cystoscopy" in text
         assert "Synthetic procedure notes" in text
         assert "Findings" not in text.split("Notes")[0]  # no structured Findings section header before notes area is weak; ensure notes present
         assert "Impression" not in text or "Impression" not in text.split("Notes")[0]
@@ -455,14 +457,14 @@ def test_previous_session_search(client):
                 "date_of_birth": "1975-05-05",
                 "medical_record_number": "TEST-MRN-002",
             },
-            procedure_type="Prostate biopsy",
+            procedure_type="Prostate Biopsy",
         ),
     )
     res = client.get("/api/sessions", params={"q": "Demo"})
     assert res.status_code == 200
     assert any("Demo" in s["patient_name"] for s in res.json())
-    res2 = client.get("/api/sessions", params={"procedure_type": "Prostate biopsy"})
-    assert all(s["procedure_type"] == "Prostate biopsy" for s in res2.json())
+    res2 = client.get("/api/sessions", params={"procedure_type": "Prostate Biopsy"})
+    assert all(s["procedure_type"] == "Prostate Biopsy" for s in res2.json())
 
 
 def test_storage_browse_and_set(client, tmp_path):

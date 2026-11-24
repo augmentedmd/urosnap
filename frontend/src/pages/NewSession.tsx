@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { titleCase } from '@/lib/titleCase'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
 
 const FPS = [5, 10, 15, 24, 30, 60]
@@ -26,7 +27,7 @@ export function NewSession() {
     last_name: '',
     date_of_birth: '',
     medical_record_number: '',
-    procedure_type: 'Diagnostic cystoscopy',
+    procedure_type: 'Diagnostic Cystoscopy',
     custom_procedure_name: '',
     save_custom_procedure: false,
     physician: '',
@@ -99,7 +100,7 @@ export function NewSession() {
               date_of_birth: form.date_of_birth || null,
               medical_record_number: form.medical_record_number,
             },
-            procedure_type: form.procedure_type || 'Diagnostic cystoscopy',
+            procedure_type: form.procedure_type || 'Diagnostic Cystoscopy',
             custom_procedure_name: isCustom ? form.custom_procedure_name || null : null,
             save_custom_procedure: isCustom && form.save_custom_procedure,
             physician: form.physician,
@@ -156,7 +157,7 @@ export function NewSession() {
               >
                 {(procedures.data ?? []).map((p) => (
                   <option key={p.id} value={p.name}>
-                    {p.name}
+                    {titleCase(p.name)}
                     {p.is_custom ? ' (saved custom)' : ''}
                   </option>
                 ))}
