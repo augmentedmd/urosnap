@@ -50,6 +50,10 @@ if ($Ffmpeg) {
   Write-Host "ffmpeg not on PATH — AVI fallback will be used until ffmpeg is added beside OpenSnap.exe"
 }
 
+# IT helper for explicit opensnap:// registration (EXE also self-registers on launch).
+Copy-Item (Join-Path $Root "packaging\register-opensnap-protocol.ps1") (Join-Path $Dist "register-opensnap-protocol.ps1") -Force
+Write-Host "Bundled register-opensnap-protocol.ps1"
+
 $Zip = Join-Path $Root "dist\OpenSnap-windows.zip"
 New-Item -ItemType Directory -Force -Path (Split-Path $Zip) | Out-Null
 if (Test-Path $Zip) { Remove-Item $Zip -Force }

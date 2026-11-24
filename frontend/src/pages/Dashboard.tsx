@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, HardDrive, Plus, Video } from 'lucide-react'
+import { AlertTriangle, HardDrive, Play, Plus, Video } from 'lucide-react'
 import { api } from '@/lib/api'
-import { getServiceBaseUrl, isSameOriginService } from '@/lib/runtime'
+import { launchOpenSnapProtocol } from '@/lib/protocol'
+import { getServiceBaseUrl, isRemoteUiShell, isSameOriginService } from '@/lib/runtime'
 import { formatBytes, formatDate } from '@/lib/utils'
 import { DeleteSessionButton } from '@/components/DeleteSessionButton'
 import { Badge, Button, Card, PageHeader, StatusDot } from '@/components/ui'
@@ -90,14 +91,42 @@ export function Dashboard() {
             <div className="space-y-2">
               <div className="font-semibold text-red-900">Local recording service unreachable</div>
               <p className="text-sm text-red-900">
-                Run <strong>OpenSnap.exe</strong> on the Windows PC (double-click). It starts the
-                recorder and opens the app at{' '}
-                <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
-                  http://127.0.0.1:8000
-                </a>
-                . This Cloudflare page cannot capture video by itself.
+                {isRemoteUiShell() ? (
+                  <>
+                    Use <strong>Start local service</strong> (opens <code>opensnap://start</code> after
+                    one-time EXE install), or double-click <strong>OpenSnap.exe</strong>. This
+                    Cloudflare page cannot capture video by itself — PHI stays on the PC.
+                  </>
+                ) : (
+                  <>
+                    Run <strong>OpenSnap.exe</strong> on the Windows PC (double-click). It starts the
+                    recorder and opens the app at{' '}
+                    <a
+                      className="font-semibold underline"
+                      href="http://127.0.0.1:8000"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      http://127.0.0.1:8000
+                    </a>
+                    .
+                  </>
+                )}
               </p>
-              <div className="flex flex-wrap gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                {isRemoteUiShell() ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      launchOpenSnapProtocol()
+                      window.setTimeout(() => void health.refetch(), 2500)
+                    }}
+                  >
+                    <Play className="h-4 w-4" />
+                    Start local service
+                  </Button>
+                ) : null}
                 <a className="font-semibold underline text-red-950" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">
                   Check /api/health
                 </a>

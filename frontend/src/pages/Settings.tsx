@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, Play } from 'lucide-react'
 import { api, type Settings as SettingsType, type StorageBrowse } from '@/lib/api'
+import { launchOpenSnapProtocol } from '@/lib/protocol'
 import {
   getServiceBaseUrl,
   getUiBaseUrl,
+  isRemoteUiShell,
   setStoredServiceUrl,
   setStoredUiBaseUrl,
 } from '@/lib/runtime'
@@ -99,8 +101,9 @@ export function SettingsPage() {
           <p className="text-xs text-[var(--color-muted)]">
             Cloudflare may host only the OpenSnap UI shell. Video, snapshots, patient data, and PDFs
             always stay on the local Windows recording service (OpenSnap.exe or uvicorn). Do not point
-            these URLs at Cloudflare. The Windows EXE packaging path is unchanged and preferred for
-            day-to-day clinical use.
+            these URLs at Cloudflare. After one-time OpenSnap.exe install,{' '}
+            <strong>Start local service</strong> uses the <code>opensnap://</code> deep-link so staff
+            need not find the EXE each day. EXE packaging remains the preferred clinical path.
           </p>
           <Field
             label="Local recording service URL"
@@ -136,6 +139,21 @@ export function SettingsPage() {
             </div>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2">
+            {isRemoteUiShell() ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setProbeMessage('Asking Windows to start OpenSnap via opensnap://start…')
+                  setProbeOk(null)
+                  launchOpenSnapProtocol()
+                  window.setTimeout(() => void probeConnection(), 2500)
+                }}
+              >
+                <Play className="h-4 w-4" />
+                Start local service
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" onClick={() => void probeConnection()}>
               Test connection
             </Button>

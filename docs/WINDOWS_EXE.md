@@ -22,6 +22,15 @@ All video, snapshots, patient data, and PDFs stay on that Windows PC under:
 
 Optional: you may also bookmark the Cloudflare-hosted **UI shell** while still running this EXE as the local recorder. Cloudflare never receives PHI or media; see [CLOUDFLARE.md](CLOUDFLARE.md). The EXE packaging path is independent and remains fully supported.
 
+## Start from the Cloudflare website (`opensnap://`)
+
+A webpage cannot start Windows programs by itself. On first launch, `OpenSnap.exe` registers a per-user URL protocol:
+
+- `opensnap://start` — start the local recorder (used by the Cloudflare **Start local service** button)
+- `opensnap://open` — start and open the local browser UI
+
+After that one-time registration, clinic staff can use the Cloudflare bookmark without finding the EXE each day. IT can also run `register-opensnap-protocol.ps1` (bundled next to the EXE) or `OpenSnap.exe --register-protocol`.
+
 ### If the app says “Synthetic pattern”
 
 1. Confirm the HDMI-to-USB device (or webcam) appears under **Device Manager → Cameras**.

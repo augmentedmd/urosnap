@@ -42,16 +42,19 @@ No Cloudflare required. Double-click `OpenSnap.exe` → browser opens `http://12
 
 Use when you want a stable HTTPS bookmark for the SPA while the recorder still runs on the clinic PC.
 
-1. **Keep the local service running** on the Windows workstation:
-   - Prefer **`OpenSnap.exe`** (same package as option A), or
-   - Dev/IT: `uvicorn app.main:app --host 0.0.0.0 --port 8000` after a frontend build
-2. Confirm `http://127.0.0.1:8000/api/health` on that PC
-3. Open the Cloudflare Worker URL in Chrome/Edge **on that PC** (or a browser that can reach the PC on the clinic LAN)
-4. When the browser prompts for **local network / private network** access for the Cloudflare site, choose **Allow**
-5. In **Settings → Local processing connection**:
+**One-time:** run `OpenSnap.exe` once on the capture PC (registers the Windows `opensnap://` protocol). Optionally run `register-opensnap-protocol.ps1` from the zip for an explicit IT step.
+
+**Daily:**
+
+1. Open the Cloudflare Worker URL in Chrome/Edge **on that PC**
+2. If the recorder is not up, click **Start local service** (opens `opensnap://start` → launches `OpenSnap.exe`)
+3. When the browser prompts for **local network / private network** access, choose **Allow**
+4. In **Settings → Local processing connection**:
    - **Local recording service URL** → `http://127.0.0.1:8000` (same PC) or `http://<workstation-lan-ip>:8000`
    - **Public UI base URL** → the Cloudflare Worker URL (used inside iPhone QR links)
-6. Click **Test connection**, then **Save connection**
+5. Click **Test connection**, then **Save connection**
+
+You can still start the EXE manually or run `uvicorn` for development; the deep-link is convenience, not a replacement for the EXE package.
 
 The remote UI blocks clinical screens until `/api/health` succeeds against the local service. Patient data, media, and PDFs never leave the workstation.
 
