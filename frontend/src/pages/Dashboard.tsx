@@ -30,12 +30,22 @@ export function Dashboard() {
             : `UI may be remote; processing is local at ${serviceBase}`
         }
         actions={
-          <Link to="/sessions/new">
-            <Button size="lg">
-              <Plus className="h-5 w-5" />
-              New Session
-            </Button>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {remoteShell ? (
+              <a href={downloadUrl} rel="noreferrer">
+                <Button type="button" size="lg" variant="secondary">
+                  <Download className="h-5 w-5" />
+                  Download Windows package
+                </Button>
+              </a>
+            ) : null}
+            <Link to="/sessions/new">
+              <Button size="lg">
+                <Plus className="h-5 w-5" />
+                New Session
+              </Button>
+            </Link>
+          </div>
         }
       />
 

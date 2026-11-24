@@ -43,14 +43,16 @@ jobs:
           try {
             $names = $zip.Entries | ForEach-Object { $_.FullName -replace '\\', '/' }
             $need = @(
-              'OpenSnap/OpenSnap.exe',
-              'OpenSnap/_internal/frontend/dist/index.html',
-              'OpenSnap/frontend/dist/index.html'
+              'OpenSnap.exe',
+              '_internal/frontend/dist/index.html',
+              'frontend/dist/index.html'
             )
             foreach ($n in $need) {
-              if ($names -notcontains $n) { throw "Artifact missing required path: $n" }
+              if ($names -notcontains $n) { throw "Artifact missing required top-level path: $n" }
             }
-            Write-Host "UI paths present in OpenSnap-windows.zip"
+            $nested = $names | Where-Object { $_ -like 'OpenSnap/*' -or $_ -eq 'OpenSnap/' }
+            if ($nested) { throw "Zip still nests under OpenSnap/ — expected flat layout" }
+            Write-Host "Flat zip layout OK (OpenSnap.exe + deps at archive root)"
           } finally {
             $zip.Dispose()
           }
@@ -74,7 +76,7 @@ jobs:
           body: |
             Windows clinic package (`OpenSnap-windows.zip`).
 
-            1. Download and extract the full `OpenSnap` folder.
+            1. Download and extract the zip (OpenSnap.exe appears at the top level with `_internal`).
             2. Double-click `OpenSnap.exe`.
             3. Work at http://127.0.0.1:8000 — or bookmark the Cloudflare UI and download from `/download/windows`.
 

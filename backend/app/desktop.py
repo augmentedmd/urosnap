@@ -112,8 +112,8 @@ def run(host: str | None = None, port: int | None = None, open_browser: bool = T
     if not index.is_file():
         message = (
             f"OpenSnap UI is missing at:\n{index}\n\n"
-            "Re-extract the full OpenSnap folder from OpenSnap-windows.zip "
-            "(keep the _internal folder next to OpenSnap.exe)."
+            "Re-extract OpenSnap-windows.zip so OpenSnap.exe and the _internal "
+            "folder sit side by side at the extract location."
         )
         logger.error("UI missing: %s", index)
         _show_error(message)
