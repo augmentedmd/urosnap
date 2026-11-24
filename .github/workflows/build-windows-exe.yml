@@ -61,10 +61,23 @@ jobs:
           name: OpenSnap-windows
           path: dist/OpenSnap-windows.zip
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # Durable public URL used by the Cloudflare UI (/download/windows):
+      # https://github.com/augmentedmd/urosnap/releases/latest/download/OpenSnap-windows.zip
+      - name: Publish latest Windows package release
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'windows-latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('OpenSnap {0}', github.ref_name) || 'OpenSnap Windows (latest)' }}
           files: dist/OpenSnap-windows.zip
+          make_latest: true
+          body: |
+            Windows clinic package (`OpenSnap-windows.zip`).
+
+            1. Download and extract the full `OpenSnap` folder.
+            2. Double-click `OpenSnap.exe`.
+            3. Work at http://127.0.0.1:8000 — or bookmark the Cloudflare UI and download from `/download/windows`.
+
+            Binary only — not PHI. Cloudflare never receives clinical data.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

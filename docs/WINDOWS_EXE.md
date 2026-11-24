@@ -2,7 +2,7 @@
 
 Physicians should not need Git, Python, or Cloudflare. The desktop package is a double-click app:
 
-1. Download **OpenSnap-windows.zip** from the GitHub Release (or CI artifact)
+1. Download **OpenSnap-windows.zip** from the Cloudflare UI (**Download Windows package**, path `/download/windows`) or from the GitHub Release latest asset
 2. Extract the **entire** `OpenSnap` folder (keep `_internal` next to `OpenSnap.exe` — do not run the EXE from inside the zip)
 3. Double-click **`OpenSnap.exe`**
 4. The default browser opens to `http://127.0.0.1:8000` with the full UI + local recorder
@@ -20,7 +20,11 @@ All video, snapshots, patient data, and PDFs stay on that Windows PC under:
 - Opens the browser automatically
 - Prefers a real USB/webcam capture device when Windows exposes one; otherwise uses synthetic video
 
-Optional: you may also bookmark the Cloudflare-hosted **UI shell** while still running this EXE as the local recorder. Cloudflare never receives PHI or media; see [CLOUDFLARE.md](CLOUDFLARE.md). The EXE packaging path is independent and remains fully supported.
+Optional: you may also bookmark the Cloudflare-hosted **UI shell** while still running this EXE as the local recorder. That site hosts the Windows download redirect and never receives PHI or media; see [CLOUDFLARE.md](CLOUDFLARE.md). The EXE packaging path is independent and remains fully supported.
+
+### Optional `opensnap://` deep-link
+
+Download + double-click is primary. If the packaged EXE registers `opensnap://` (or IT runs a register script), the Cloudflare UI can optionally offer **Try opensnap:// start**. Ignore that control if the browser has no handler — re-download and run the EXE instead.
 
 ### If the app says “Synthetic pattern”
 
@@ -55,4 +59,4 @@ cd urosnap
 
 Output: `dist\OpenSnap-windows.zip`
 
-CI: `.github/workflows/build-windows-exe.yml` builds the same zip on `main` and attaches it to version tags (`v*`).
+CI: `.github/workflows/build-windows-exe.yml` builds the same zip on `main` and publishes it to the GitHub Release used by `/download/windows` (`releases/latest/download/OpenSnap-windows.zip`). Version tags (`v*`) also attach the zip.

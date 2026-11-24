@@ -11,7 +11,8 @@ OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets whil
 | Static React SPA (HTML/JS/CSS/fonts) | Video acquisition & recording |
 | Optional remote-control page shell | Automatic / manual snapshots |
 | `/opensnap.json` capability metadata | Patient demographics & Notes |
-| Explicit rejection of `/api/*` (HTTP 501) | SQLite, session files, PDFs |
+| `/download/windows` → latest `OpenSnap-windows.zip` (binary only) | SQLite, session files, PDFs |
+| Explicit rejection of `/api/*` (HTTP 501) | |
 
 **Cloudflare must never receive PHI, photos, video, or PDFs.** Do not put the recording service behind Cloudflare Tunnel for clinical traffic. Do not add D1/R2/KV bindings for patient data.
 
@@ -36,24 +37,26 @@ Confirm with `GET /opensnap.json` (`role: ui-shell`, `stores_phi: false`). `GET 
 
 ### A. Primary — OpenSnap.exe (recommended)
 
-No Cloudflare required. Double-click `OpenSnap.exe` → browser opens `http://127.0.0.1:8000` with UI + API same-origin. See [WINDOWS_EXE.md](WINDOWS_EXE.md).
+1. Download **OpenSnap-windows.zip** from the Cloudflare UI (**Download Windows package** / `/download/windows`) or from the GitHub Release.
+2. Extract and double-click `OpenSnap.exe` → browser opens `http://127.0.0.1:8000` with UI + API same-origin.
+3. No Cloudflare required for day-to-day recording. See [WINDOWS_EXE.md](WINDOWS_EXE.md).
 
 ### B. Optional — bookmarkable Cloudflare UI + local service
 
-Use when you want a stable HTTPS bookmark for the SPA while the recorder still runs on the clinic PC.
+Use when you want a stable HTTPS bookmark for the SPA (and the Windows download) while the recorder still runs on the clinic PC.
 
-1. **Keep the local service running** on the Windows workstation:
-   - Prefer **`OpenSnap.exe`** (same package as option A), or
-   - Dev/IT: `uvicorn app.main:app --host 0.0.0.0 --port 8000` after a frontend build
-2. Confirm `http://127.0.0.1:8000/api/health` on that PC
-3. Open the Cloudflare Worker URL in Chrome/Edge **on that PC** (or a browser that can reach the PC on the clinic LAN)
-4. When the browser prompts for **local network / private network** access for the Cloudflare site, choose **Allow**
+1. Open the Cloudflare Worker URL and click **Download Windows package** if the PC does not have the EXE yet.
+2. **Keep the local service running** on the Windows workstation (`OpenSnap.exe`, or `uvicorn` for IT/dev).
+3. Confirm `http://127.0.0.1:8000/api/health` on that PC.
+4. When the browser prompts for **local network / private network** access for the Cloudflare site, choose **Allow**.
 5. In **Settings → Local processing connection**:
    - **Local recording service URL** → `http://127.0.0.1:8000` (same PC) or `http://<workstation-lan-ip>:8000`
    - **Public UI base URL** → the Cloudflare Worker URL (used inside iPhone QR links)
-6. Click **Test connection**, then **Save connection**
+6. Click **Test connection**, then **Save connection**.
 
-The remote UI blocks clinical screens until `/api/health` succeeds against the local service. Patient data, media, and PDFs never leave the workstation.
+`opensnap://` deep-link controls on the UI are **optional** after EXE install; download + double-click remains the primary clinic path.
+
+The remote UI blocks clinical screens until `/api/health` succeeds against the local service. Patient data, media, and PDFs never leave the workstation. Binary package download is not PHI.
 
 ### CORS / Private Network Access
 

@@ -19,6 +19,16 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // Intercept clinical-looking paths so Cloudflare never pretends to be the API.
-    "run_worker_first": ["/api/*", "/ws/*", "/docs", "/docs/*", "/openapi.json", "/redoc", "/opensnap.json"]
+    "run_worker_first": [
+      "/api/*",
+      "/ws/*",
+      "/docs",
+      "/docs/*",
+      "/openapi.json",
+      "/redoc",
+      "/opensnap.json",
+      "/download/windows",
+      "/download/windows/"
+    ]
   }
 }
