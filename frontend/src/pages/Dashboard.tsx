@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, HardDrive, Plus, Video } from 'lucide-react'
+import { AlertTriangle, Download, HardDrive, Play, Plus, Video } from 'lucide-react'
 import { api } from '@/lib/api'
-import { getServiceBaseUrl, isSameOriginService } from '@/lib/runtime'
+import { getWindowsPackageDownloadUrl } from '@/lib/download'
+import { launchOpenSnapProtocol } from '@/lib/protocol'
+import { getServiceBaseUrl, isRemoteUiShell, isSameOriginService } from '@/lib/runtime'
 import { formatBytes, formatDate } from '@/lib/utils'
 import { DeleteSessionButton } from '@/components/DeleteSessionButton'
 import { Badge, Button, Card, PageHeader, StatusDot } from '@/components/ui'
@@ -14,6 +16,8 @@ export function Dashboard() {
   const h = health.data
   const warnings = h?.warnings ?? []
   const serviceBase = getServiceBaseUrl() || window.location.origin
+  const downloadUrl = getWindowsPackageDownloadUrl()
+  const remoteShell = isRemoteUiShell()
 
   return (
     <div>
@@ -90,14 +94,59 @@ export function Dashboard() {
             <div className="space-y-2">
               <div className="font-semibold text-red-900">Local recording service unreachable</div>
               <p className="text-sm text-red-900">
-                Run <strong>OpenSnap.exe</strong> on the Windows PC (double-click). It starts the
-                recorder and opens the app at{' '}
-                <a className="font-semibold underline" href="http://127.0.0.1:8000" target="_blank" rel="noreferrer">
-                  http://127.0.0.1:8000
-                </a>
-                . This Cloudflare page cannot capture video by itself.
+                {remoteShell ? (
+                  <>
+                    Download <strong>OpenSnap-windows.zip</strong> from this site, extract it, and
+                    double-click <strong>OpenSnap.exe</strong>. Prefer the local window at{' '}
+                    <a
+                      className="font-semibold underline"
+                      href="http://127.0.0.1:8000"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      http://127.0.0.1:8000
+                    </a>
+                    . This Cloudflare page cannot capture video by itself — PHI stays on the PC.
+                  </>
+                ) : (
+                  <>
+                    Run <strong>OpenSnap.exe</strong> on the Windows PC (double-click). It starts the
+                    recorder and opens the app at{' '}
+                    <a
+                      className="font-semibold underline"
+                      href="http://127.0.0.1:8000"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      http://127.0.0.1:8000
+                    </a>
+                    .
+                  </>
+                )}
               </p>
-              <div className="flex flex-wrap gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                {remoteShell ? (
+                  <>
+                    <a href={downloadUrl} rel="noreferrer">
+                      <Button type="button" size="sm">
+                        <Download className="h-4 w-4" />
+                        Download Windows package
+                      </Button>
+                    </a>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        launchOpenSnapProtocol()
+                        window.setTimeout(() => void health.refetch(), 2500)
+                      }}
+                    >
+                      <Play className="h-4 w-4" />
+                      Try opensnap:// (optional)
+                    </Button>
+                  </>
+                ) : null}
                 <a className="font-semibold underline text-red-950" href={`${serviceBase}/api/health`} target="_blank" rel="noreferrer">
                   Check /api/health
                 </a>

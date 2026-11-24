@@ -1,9 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { api } from '@/lib/api'
+import { getWindowsPackageDownloadUrl } from '@/lib/download'
+import { isRemoteUiShell } from '@/lib/runtime'
 import { cn } from '@/lib/utils'
 import {
   Camera,
+  Download,
   History,
   LayoutDashboard,
   Power,
@@ -53,7 +56,17 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 pb-4">
+        <div className="space-y-2 px-3 pb-4">
+          {isRemoteUiShell() ? (
+            <a
+              href={getWindowsPackageDownloadUrl()}
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
+            >
+              <Download className="h-4 w-4" />
+              Download Windows app
+            </a>
+          ) : null}
           <QuitButton />
         </div>
       </aside>

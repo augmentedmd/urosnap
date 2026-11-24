@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Download, ExternalLink, Play, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
+import { WINDOWS_PACKAGE_LABEL, getWindowsPackageDownloadUrl } from '@/lib/download'
+import { launchOpenSnapProtocol } from '@/lib/protocol'
 import {
   getServiceBaseUrl,
   isRemoteUiShell,
@@ -15,8 +17,9 @@ type Props = {
 }
 
 /**
- * Cloudflare UI shell cannot record by itself. Prefer OpenSnap.exe on the PC.
- * Advanced users may still point this remote UI at a running local service.
+ * Cloudflare UI shell cannot record by itself. Primary path: download the
+ * Windows package, run OpenSnap.exe, work locally. Advanced: point this remote
+ * UI at a running local service. Optional: opensnap:// if already registered.
  */
 export function ConnectionGate({ children }: Props) {
   const location = useLocation()
@@ -26,6 +29,15 @@ export function ConnectionGate({ children }: Props) {
   const [checking, setChecking] = useState(remote)
   const [ok, setOk] = useState(!remote)
   const [message, setMessage] = useState<string | null>(null)
+  const [launching, setLaunching] = useState(false)
+  const probeTimers = useRef<number[]>([])
+  const downloadUrl = getWindowsPackageDownloadUrl()
+
+  useEffect(() => {
+    return () => {
+      for (const id of probeTimers.current) window.clearTimeout(id)
+    }
+  }, [])
 
   const probe = async (base: string) => {
     const normalized = (base || 'http://127.0.0.1:8000').replace(/\/+$/, '')
@@ -59,6 +71,22 @@ export function ConnectionGate({ children }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- probe once on mount for remote UI
   }, [remote])
 
+  const tryOptionalProtocol = () => {
+    setLaunching(true)
+    setMessage(
+      'Optional: asking Windows via opensnap://start… Prefer Download + OpenSnap.exe if nothing happens.',
+    )
+    launchOpenSnapProtocol()
+    for (const id of probeTimers.current) window.clearTimeout(id)
+    probeTimers.current = [1500, 3500, 7000].map((ms) =>
+      window.setTimeout(() => {
+        void probe(serviceUrlInput).finally(() => {
+          if (ms >= 7000) setLaunching(false)
+        })
+      }, ms),
+    )
+  }
+
   if (!remote || ok || allowThrough) {
     return <>{children}</>
   }
@@ -70,32 +98,33 @@ export function ConnectionGate({ children }: Props) {
           <AlertTriangle className="mt-0.5 h-6 w-6 text-amber-700" />
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-amber-950">
-              Use OpenSnap on the Windows PC
+              Download OpenSnap for Windows
             </h1>
             <p className="mt-2 text-sm text-amber-950/90">
-              This Cloudflare page is only a UI shell. For day-to-day use, download{' '}
-              <strong>OpenSnap.exe</strong>, double-click it on the workstation, and work in the
-              browser window it opens — no Git, Python, or manual server setup.
+              This Cloudflare page is only a UI shell. Download{' '}
+              <strong>{WINDOWS_PACKAGE_LABEL}</strong>, extract it, and double-click{' '}
+              <strong>OpenSnap.exe</strong> on the capture PC — no Git, Python, or protocol setup
+              required. Patient data and video stay on that PC.
             </p>
           </div>
         </div>
 
         <ol className="list-decimal space-y-2 pl-5 text-sm text-amber-950">
           <li>
-            On the Windows PC, run <strong>OpenSnap.exe</strong> (from the GitHub Release zip). It
-            starts the local recorder and opens the app at http://127.0.0.1:8000.
+            Click <strong>Download Windows package</strong> (bookmarkable:{' '}
+            <code className="text-xs">/download/windows</code>).
           </li>
           <li>
-            Prefer that local window for recording. Camera preview and patient data never go through
-            Cloudflare.
+            Extract the full <strong>OpenSnap</strong> folder and double-click{' '}
+            <strong>OpenSnap.exe</strong>. Prefer the local window at http://127.0.0.1:8000.
           </li>
           <li>
-            Advanced: if you still want this remote UI to talk to a running EXE, enter the service URL
-            below, allow local-network access when the browser prompts, then Test connection.
+            Optional: keep this Cloudflare bookmark and point the connection URL below at a running
+            EXE if you want the remote UI shell.
           </li>
         </ol>
 
-        <Field label="Local recording service URL">
+        <Field label="Local recording service URL (advanced)">
           <Input
             value={serviceUrlInput}
             placeholder="http://127.0.0.1:8000"
@@ -108,6 +137,12 @@ export function ConnectionGate({ children }: Props) {
         ) : null}
 
         <div className="flex flex-wrap gap-2">
+          <a href={downloadUrl} rel="noreferrer">
+            <Button type="button">
+              <Download className="h-4 w-4" />
+              Download Windows package
+            </Button>
+          </a>
           <Button type="button" disabled={checking} onClick={() => void probe(serviceUrlInput)}>
             <RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />
             {checking ? 'Testing…' : 'Test connection'}
@@ -127,6 +162,23 @@ export function ConnectionGate({ children }: Props) {
             }}
           >
             Connection settings
+          </Button>
+        </div>
+
+        <div className="border-t border-amber-200/80 pt-3">
+          <p className="mb-2 text-xs text-amber-900/80">
+            Optional: if <code>opensnap://</code> was registered by a prior EXE install, you can try
+            starting the service from this page. Download remains the primary path.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={launching || checking}
+            onClick={tryOptionalProtocol}
+          >
+            <Play className={`h-4 w-4 ${launching ? 'animate-pulse' : ''}`} />
+            {launching ? 'Trying opensnap://…' : 'Try opensnap:// start (optional)'}
           </Button>
         </div>
       </Card>

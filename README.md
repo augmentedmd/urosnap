@@ -18,11 +18,11 @@ All clinical data stays on the Windows recording computer. No cloud services are
 
 ### Optional Cloudflare UI shell (coexists with the EXE)
 
-You may host the **static UI only** on Cloudflare Workers (bookmarkable HTTPS). Processing still runs entirely on the local service (`OpenSnap.exe` or uvicorn) — Cloudflare never sees PHI, video, photos, or PDFs, and never proxies `/api/*`. The Windows EXE packaging path stays intact. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+You may host the **static UI only** on Cloudflare Workers (bookmarkable HTTPS). That shell also offers **Download Windows package** (`/download/windows` → GitHub Release zip). Processing still runs entirely on the local service (`OpenSnap.exe` or uvicorn) — Cloudflare never sees PHI, video, photos, or PDFs, and never proxies `/api/*`. The Windows EXE packaging path stays intact. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
 
 ## Quick start (physicians)
 
-**Download `OpenSnap-windows.zip`, extract, double-click `OpenSnap.exe`.**
+**Download `OpenSnap-windows.zip` (Cloudflare UI or GitHub Release), extract, double-click `OpenSnap.exe`.**
 
 The app starts the local recorder and opens the browser. No Git, Python, or Cloudflare setup. Details: [docs/WINDOWS_EXE.md](docs/WINDOWS_EXE.md).
 
