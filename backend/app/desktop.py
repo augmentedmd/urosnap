@@ -2,6 +2,9 @@
 
 Starts the local recording service and opens the UI in the default browser.
 No Cloudflare, no git clone, no manual uvicorn for end users.
+
+Also registers the Windows `opensnap://` URL protocol so the Cloudflare UI
+bookmark can start this EXE via a deep-link (one-time install, then website-only).
 """
 
 from __future__ import annotations
@@ -20,7 +23,25 @@ import uvicorn
 
 from app.config import get_settings
 from app.main import app
+from app.protocol import (
+    extract_protocol_argv,
+    parse_protocol_url,
+    register_protocol,
+)
+
 logger = logging.getLogger("opensnap.desktop")
+
+
+def _maybe_register_protocol() -> None:
+    """Best-effort HKCU registration so Cloudflare `opensnap://start` works afterward."""
+    if sys.platform != "win32":
+        return
+    try:
+        exe = register_protocol()
+        logger.info("Registered opensnap:// → %s", exe)
+    except Exception as exc:
+        # Non-fatal: clinic can still double-click the EXE or run the PowerShell helper.
+        logger.warning("Could not register opensnap:// protocol: %s", exc)
 
 
 def _port_open(host: str, port: int) -> bool:
@@ -154,8 +175,11 @@ def _show_error(message: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    remaining, protocol_url = extract_protocol_argv(raw)
+
     parser = argparse.ArgumentParser(description="OpenSnap desktop recording service")
-    parser.add_argument("--host", default=None, help="Bind address (default 127.0.0.1)")
+    parser.add_argument("--host", default=None, help="Bind address (default 0.0.0.0 / LAN)")
     parser.add_argument("--port", type=int, default=None, help="Port (default 8000)")
     parser.add_argument(
         "--no-browser",
@@ -167,10 +191,55 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Bind 127.0.0.1 only (disables the iPhone remote)",
     )
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--register-protocol",
+        action="store_true",
+        help="Register opensnap:// in HKCU for this EXE and exit (no service start)",
+    )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Bind 0.0.0.0 so clinic LAN devices can reach the service (default)",
+    )
+    args = parser.parse_args(remaining)
+
+    open_browser = not args.no_browser
+    if protocol_url:
+        try:
+            launch = parse_protocol_url(protocol_url)
+        except ValueError as exc:
+            logger.error("%s", exc)
+            _show_error(str(exc))
+            return 2
+        if launch.action == "register" or args.register_protocol:
+            try:
+                exe = register_protocol()
+                logger.info("Registered opensnap:// → %s", exe)
+                return 0
+            except OSError as exc:
+                _show_error(f"Could not register opensnap://:\n\n{exc}")
+                return 1
+        # Deep-link from Cloudflare: start the recorder; browser open only if requested.
+        open_browser = launch.open_browser and not args.no_browser
+        logger.info("Protocol launch %s (open_browser=%s)", launch.raw, open_browser)
+
+    if args.register_protocol and not protocol_url:
+        try:
+            exe = register_protocol()
+            logger.info("Registered opensnap:// → %s", exe)
+            return 0
+        except OSError as exc:
+            _show_error(f"Could not register opensnap://:\n\n{exc}")
+            return 1
+
+    # Keep protocol registration fresh whenever the EXE runs (path may move after re-extract).
+    _maybe_register_protocol()
+
     host = "127.0.0.1" if args.local_only else args.host
+    if args.lan and host is None:
+        host = "0.0.0.0"
     try:
-        run(host=host, port=args.port, open_browser=not args.no_browser)
+        run(host=host, port=args.port, open_browser=open_browser)
     except KeyboardInterrupt:
         return 0
     except OSError as exc:

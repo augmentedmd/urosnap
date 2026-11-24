@@ -21,7 +21,7 @@ Local-first, browser-based urology video capture and procedure reporting system.
 └─────────────────────┘
 ```
 
-Optional: Cloudflare may still host a **UI shell only** for demos (bookmarkable Workers URL); clinical use should prefer the EXE. Both coexist — Cloudflare never proxies `/api/*` or stores PHI. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+Optional: Cloudflare may still host a **UI shell only** for demos (bookmarkable Workers URL); clinical use should prefer the EXE. Both coexist — Cloudflare never proxies `/api/*` or stores PHI. After one-time protocol registration, the Cloudflare UI can deep-link via `opensnap://start`. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) and [docs/WINDOWS_EXE.md](docs/WINDOWS_EXE.md).
 
 ## Data flow
 
