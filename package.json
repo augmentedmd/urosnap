@@ -10,7 +10,8 @@
     "deploy": "npm run build && wrangler deploy",
     "preview": "npm run build && wrangler preview",
     "dry-run": "npm run build && wrangler deploy --dry-run",
-    "cf:types": "wrangler types"
+    "cf:types": "wrangler types",
+    "test:worker": "npm --prefix cloudflare test"
   },
   "devDependencies": {
     "wrangler": "^4.45.0"

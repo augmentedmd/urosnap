@@ -1,0 +1,50 @@
+name: Cloudflare UI shell
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - "docs/CLOUDFLARE.md"
+      - ".github/workflows/cloudflare-ui-shell.yml"
+  pull_request:
+    paths:
+      - "cloudflare/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - "docs/CLOUDFLARE.md"
+      - ".github/workflows/cloudflare-ui-shell.yml"
+  workflow_dispatch:
+
+# Independent of build-windows-exe.yml — EXE packaging stays intact.
+
+jobs:
+  worker-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+
+      - name: Install Worker package
+        working-directory: cloudflare
+        run: npm ci
+
+      - name: Worker boundary tests
+        working-directory: cloudflare
+        run: npm test
+
+      - name: Confirm packaging paths untouched
+        run: |
+          test -f packaging/build-windows.ps1
+          test -f packaging/opensnap.spec
+          test -f .github/workflows/build-windows-exe.yml
+          echo "Windows EXE packaging path present and unchanged by this job"

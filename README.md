@@ -16,9 +16,9 @@ Three components:
 
 All clinical data stays on the Windows recording computer. No cloud services are required for normal operation.
 
-### Optional Cloudflare UI shell
+### Optional Cloudflare UI shell (coexists with the EXE)
 
-You may host the **static UI only** on Cloudflare Workers. Processing still runs entirely on the local service — Cloudflare never sees PHI, video, photos, or PDFs. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+You may host the **static UI only** on Cloudflare Workers (bookmarkable HTTPS). Processing still runs entirely on the local service (`OpenSnap.exe` or uvicorn) — Cloudflare never sees PHI, video, photos, or PDFs, and never proxies `/api/*`. The Windows EXE packaging path stays intact. Details: [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
 
 ## Quick start (physicians)
 

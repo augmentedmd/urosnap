@@ -2,6 +2,8 @@
 
 OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets while keeping **all clinical processing local** on the Windows recording computer.
 
+**Both paths coexist.** The Windows `OpenSnap.exe` packaging path is unchanged and remains the recommended clinical workflow. Cloudflare is an optional bookmarkable UI shell for demos / shared SPA origin — never a place for PHI, video, photos, or PDFs.
+
 ## Hard boundary
 
 | Runs on Cloudflare | Stays on the local Windows service |
@@ -9,23 +11,59 @@ OpenSnap can publish its **browser UI** to Cloudflare Workers Static Assets whil
 | Static React SPA (HTML/JS/CSS/fonts) | Video acquisition & recording |
 | Optional remote-control page shell | Automatic / manual snapshots |
 | `/opensnap.json` capability metadata | Patient demographics & Notes |
-| Explicit rejection of `/api/*` | SQLite, session files, PDFs |
+| Explicit rejection of `/api/*` (HTTP 501) | SQLite, session files, PDFs |
 
 **Cloudflare must never receive PHI, photos, video, or PDFs.** Do not put the recording service behind Cloudflare Tunnel for clinical traffic. Do not add D1/R2/KV bindings for patient data.
 
 ```
 ┌──────────────────────────┐
 │ Cloudflare Worker        │  serves UI assets only
-│ opensnap-ui              │
+│ urosnap                  │  bookmarkable https://…workers.dev
 └────────────┬─────────────┘
              │ loads SPA
              ▼
-┌──────────────────────────┐     REST / MJPEG / WS      ┌──────────────────────────┐
+┌──────────────────────────┐     REST / JPEG / WS       ┌──────────────────────────┐
 │ Desktop / iPhone browser │ ─────────────────────────► │ Local OpenSnap service   │
-│ (UI from Cloudflare)     │   http://127.0.0.1:8000    │ (Windows workstation)    │
+│ (UI from Cloudflare)     │   http://127.0.0.1:8000    │ OpenSnap.exe or uvicorn  │
 │                          │   or http://LAN-IP:8000    │ all processing + storage │
 └──────────────────────────┘                            └──────────────────────────┘
 ```
+
+Production Worker (Workers Builds on `main`): **https://urosnap.michaelagorin.workers.dev**  
+Confirm with `GET /opensnap.json` (`role: ui-shell`, `stores_phi: false`). `GET /api/*` must return `local_processing_only` (not clinical data).
+
+## Two clinic options (both keep data local)
+
+### A. Primary — OpenSnap.exe (recommended)
+
+No Cloudflare required. Double-click `OpenSnap.exe` → browser opens `http://127.0.0.1:8000` with UI + API same-origin. See [WINDOWS_EXE.md](WINDOWS_EXE.md).
+
+### B. Optional — bookmarkable Cloudflare UI + local service
+
+Use when you want a stable HTTPS bookmark for the SPA while the recorder still runs on the clinic PC.
+
+1. **Keep the local service running** on the Windows workstation:
+   - Prefer **`OpenSnap.exe`** (same package as option A), or
+   - Dev/IT: `uvicorn app.main:app --host 0.0.0.0 --port 8000` after a frontend build
+2. Confirm `http://127.0.0.1:8000/api/health` on that PC
+3. Open the Cloudflare Worker URL in Chrome/Edge **on that PC** (or a browser that can reach the PC on the clinic LAN)
+4. When the browser prompts for **local network / private network** access for the Cloudflare site, choose **Allow**
+5. In **Settings → Local processing connection**:
+   - **Local recording service URL** → `http://127.0.0.1:8000` (same PC) or `http://<workstation-lan-ip>:8000`
+   - **Public UI base URL** → the Cloudflare Worker URL (used inside iPhone QR links)
+6. Click **Test connection**, then **Save connection**
+
+The remote UI blocks clinical screens until `/api/health` succeeds against the local service. Patient data, media, and PDFs never leave the workstation.
+
+### CORS / Private Network Access
+
+Browsers treat Cloudflare (`https://…workers.dev`) as a public site and `http://127.0.0.1:8000` as a private/local target. The local service advertises `Access-Control-Allow-Private-Network` (see backend PNA middleware) and open CORS for the UI shell. You must still:
+
+- Keep the recorder running on the workstation
+- Allow the browser’s local-network permission prompt
+- Or skip Cloudflare and use `http://127.0.0.1:8000` (EXE / local UI + local API)
+
+Do **not** open the recording port to the public internet. Prefer Cloudflare Access on the Worker if the UI URL should not be world-readable.
 
 ## Deploy the UI shell
 
@@ -36,8 +74,9 @@ Preview branches run `npx wrangler preview`, so `wrangler.jsonc` includes an emp
 ```bash
 # From repo root (matches Cloudflare Workers Builds defaults)
 npm install
-npm run deploy          # production
+npm run deploy          # production (requires Cloudflare auth / Workers Builds)
 npm run preview         # Worker Preview
+npm run test:worker     # boundary unit tests (no deploy)
 ```
 
 Manual / local packaging:
@@ -53,37 +92,11 @@ Optional dashboard settings (Workers → Settings → Builds):
 - **Deploy command (production):** `npx wrangler deploy`
 - **Preview command:** `npx wrangler preview`
 
-The `cloudflare/` folder holds the Worker script; root `wrangler.jsonc` + `package.json` are the CI entrypoints.
+The `cloudflare/` folder holds the Worker script; root `wrangler.jsonc` + `package.json` are the CI entrypoints. GitHub Actions `cloudflare-ui-shell.yml` runs Worker boundary tests without touching the Windows EXE workflow.
 
-After deploy, open the Worker URL. The dashboard should report the local recording service. If the service is not running, Settings → **Local processing connection** explains how to point at `http://127.0.0.1:8000`.
+### Deploy auth note
 
-## Configure the browser
-
-1. Start the local service on the Windows PC (`uvicorn` on port 8000):
-
-```powershell
-cd C:\OpenSnap\backend
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-2. Confirm the service answers: open `http://127.0.0.1:8000/api/health` on that PC.
-3. Open the Cloudflare UI URL on that same PC (or a clinic browser that can reach the PC).
-4. When Chrome/Edge prompts to allow **local network / private network** access for the Cloudflare site, choose Allow. Without this, the UI shows “Local recording service unreachable.”
-5. In **Settings**, set:
-   - **Local recording service URL** → `http://127.0.0.1:8000` (desktop on the same PC) or `http://<workstation-lan-ip>:8000`
-   - **Public UI base URL** → your Cloudflare Worker URL (used inside iPhone QR links)
-6. Click **Test connection**, then **Save connection**.
-
-### If the Cloudflare UI cannot reach localhost
-
-Browsers treat Cloudflare (`https://…workers.dev`) as a public site and `http://127.0.0.1:8000` as a private/local target. OpenSnap’s local service advertises Private Network Access CORS headers, but you must still:
-
-- Keep the recorder running on the workstation
-- Allow the browser’s local-network permission prompt
-- Or skip Cloudflare for clinical use and open `http://127.0.0.1:8000` (local UI + local API, fully offline)
-
-The remote UI shell blocks clinical screens until `/api/health` succeeds against the local service. Live preview uses authenticated JPEG polling (`/api/sessions/{id}/preview.jpg`) instead of a cross-origin MJPEG `<img>`, which browsers often block from HTTPS pages.
+`wrangler deploy` from a laptop or agent needs Cloudflare login / API token. Day-to-day production deploys for this repo go through **Workers Builds** on push to `main` (no local token required once the GitHub ↔ Cloudflare connection is set).
 
 ## iPhone remote with Cloudflare UI
 
@@ -97,11 +110,11 @@ https://<cloudflare-ui>/remote/<token>?service=http://<workstation-lan-ip>:8000
 - Start / Stop / Snapshot commands go **directly** to the workstation LAN URL in `?service=`.
 - Pairing tokens are validated only by the local service.
 
-The phone and workstation must share an approved clinic LAN. Cloudflare is not a tunnel for recording commands.
+The phone and workstation must share an approved clinic LAN. Cloudflare is not a tunnel for recording commands. For EXE LAN binding, see [WINDOWS_EXE.md](WINDOWS_EXE.md) (`OpenSnap.exe --lan`).
 
 ## Fully offline mode (no Cloudflare required)
 
-Build the frontend and let the local service serve it:
+Build the frontend and let the local service serve it (or use the EXE):
 
 ```bash
 cd frontend && npm run build
