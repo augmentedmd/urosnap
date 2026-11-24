@@ -33,7 +33,7 @@ class SessionCreate(BaseModel):
     """Session fields are optional; defaults fill any blanks for recording."""
 
     patient: PatientCreate = Field(default_factory=PatientCreate)
-    procedure_type: str = Field(default="Diagnostic cystoscopy", max_length=200)
+    procedure_type: str = Field(default="Diagnostic Cystoscopy", max_length=200)
     custom_procedure_name: Optional[str] = Field(default=None, max_length=200)
     save_custom_procedure: bool = False
     physician: str = Field(default="", max_length=200)

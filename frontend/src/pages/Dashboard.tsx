@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { getWindowsPackageDownloadUrl } from '@/lib/download'
 import { launchOpenSnapProtocol } from '@/lib/protocol'
 import { getServiceBaseUrl, isRemoteUiShell, isSameOriginService } from '@/lib/runtime'
+import { titleCase } from '@/lib/titleCase'
 import { formatBytes, formatDate } from '@/lib/utils'
 import { DeleteSessionButton } from '@/components/DeleteSessionButton'
 import { Badge, Button, Card, PageHeader, StatusDot } from '@/components/ui'
@@ -197,7 +198,7 @@ export function Dashboard() {
               {(sessions.data ?? []).slice(0, 8).map((s) => (
                 <tr key={s.public_id} className="border-t border-[var(--color-line)]">
                   <td className="px-4 py-3">{s.patient_name}</td>
-                  <td className="px-4 py-3">{s.display_procedure_name}</td>
+                  <td className="px-4 py-3">{titleCase(s.display_procedure_name)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{formatDate(s.procedure_date)}</td>
                   <td className="px-4 py-3">
                     <Badge

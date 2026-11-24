@@ -12,7 +12,7 @@ def test_recording_continues_after_pairing_revoke(client):
             "date_of_birth": "1988-03-03",
             "medical_record_number": "TEST-DISC-1",
         },
-        "procedure_type": "Prostate biopsy",
+        "procedure_type": "Prostate Biopsy",
         "physician": "Dr. Test",
         "location": "OR-2",
         "procedure_date": date.today().isoformat(),

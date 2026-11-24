@@ -24,6 +24,7 @@ from reportlab.platypus import (
 from app.config import Settings, get_settings
 from app.models.entities import ProcedureSession, Snapshot
 from app.paths import backend_assets_dir
+from app.text_case import title_case
 
 # Mount Sinai primary palette (brand guidelines: Process Cyan, Pantone 233, Pantone 274).
 MS_CYAN = colors.HexColor("#00AEEF")
@@ -39,23 +40,6 @@ def format_report_date(value: date | datetime | None) -> str:
     if value is None:
         return "—"
     return f"{value:%B} {value.day}, {value.year}"
-
-
-_SMALL_WORDS = {"a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "with"}
-
-
-def title_case(text: str) -> str:
-    """Title-case a procedure name, keeping words that already carry capitals (e.g. SpaceOAR)."""
-    words = text.split()
-    out = []
-    for i, word in enumerate(words):
-        if any(c.isupper() for c in word[1:]):
-            out.append(word)
-        elif i > 0 and word.lower() in _SMALL_WORDS:
-            out.append(word.lower())
-        else:
-            out.append(word[:1].upper() + word[1:])
-    return " ".join(out)
 
 
 def _escape(text: str) -> str:

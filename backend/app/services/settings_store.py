@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models.entities import AppSetting
 from app.schemas.api import SettingsOut, SettingsUpdate, StorageBrowseOut
+from app.text_case import normalize_procedure_name, title_case
 
 
 SETTING_KEYS = [
@@ -92,7 +93,7 @@ def get_all_settings(db: Session) -> SettingsOut:
         default_resolution=stored.get("default_resolution", settings.default_resolution),
         default_capture_source=stored.get("default_capture_source", settings.default_capture_source),
         preferred_physician=str(stored.get("preferred_physician", "")),
-        preferred_procedure_type=str(stored.get("preferred_procedure_type", "")),
+        preferred_procedure_type=title_case(str(stored.get("preferred_procedure_type", "") or "")),
         preferred_capture_device_id=str(stored.get("preferred_capture_device_id", "")),
         storage_path=str(get_sessions_dir(db)),
         pairing_token_ttl_seconds=int(
@@ -113,6 +114,10 @@ def update_settings(db: Session, payload: SettingsUpdate) -> SettingsOut:
         if not os.access(path, os.W_OK):
             raise ValueError(f"Storage folder is not writable: {path}")
         data["storage_path"] = str(path)
+    if "preferred_procedure_type" in data and data["preferred_procedure_type"] is not None:
+        data["preferred_procedure_type"] = normalize_procedure_name(
+            str(data["preferred_procedure_type"])
+        )
     for key, value in data.items():
         row = db.query(AppSetting).filter(AppSetting.key == key).one_or_none()
         if row is None:

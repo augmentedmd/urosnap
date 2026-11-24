@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { Badge, Button, Card, Input, PageHeader, Select } from '@/components/ui'
 import { DeleteSessionButton } from '@/components/DeleteSessionButton'
+import { titleCase } from '@/lib/titleCase'
 import { formatDate } from '@/lib/utils'
 
 export function Sessions() {
@@ -38,7 +39,7 @@ export function Sessions() {
           <option value="">All procedures</option>
           {(procedures.data ?? []).map((p) => (
             <option key={p.id} value={p.name}>
-              {p.name}
+              {titleCase(p.name)}
             </option>
           ))}
         </Select>
@@ -66,7 +67,7 @@ export function Sessions() {
                   <div className="font-medium">{s.patient_name}</div>
                   <div className="text-xs text-[var(--color-muted)]">{s.medical_record_number}</div>
                 </td>
-                <td className="px-4 py-3">{s.display_procedure_name}</td>
+                <td className="px-4 py-3">{titleCase(s.display_procedure_name)}</td>
                 <td className="px-4 py-3">{s.physician}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{formatDate(s.procedure_date)}</td>
                 <td className="px-4 py-3">
