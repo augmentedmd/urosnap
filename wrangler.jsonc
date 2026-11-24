@@ -3,7 +3,7 @@
   // Must match the Cloudflare Workers Builds / dashboard Worker name.
   "name": "urosnap",
   "main": "cloudflare/src/index.ts",
-  "compatibility_date": "2026-11-12",
+  "compatibility_date": "2026-11-24",
   "upload_source_maps": true,
   // Required for Workers Builds preview branches (`npx wrangler preview`).
   "preview_urls": true,

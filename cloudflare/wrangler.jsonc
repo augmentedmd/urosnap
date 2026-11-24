@@ -3,7 +3,7 @@
   // Keep in sync with the dashboard Worker / root wrangler.jsonc name.
   "name": "urosnap",
   "main": "src/index.ts",
-  "compatibility_date": "2026-11-12",
+  "compatibility_date": "2026-11-24",
   "upload_source_maps": true,
   "preview_urls": true,
   "previews": {},

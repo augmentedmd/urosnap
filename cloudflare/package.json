@@ -8,9 +8,11 @@
     "deploy": "npm run build:ui && wrangler deploy",
     "dry-run": "npm run build:ui && wrangler deploy --dry-run",
     "dev": "npm run build:ui && wrangler dev",
-    "types": "wrangler types"
+    "types": "wrangler types",
+    "test": "tsx --test src/boundary.test.ts"
   },
   "devDependencies": {
+    "tsx": "^4.20.5",
     "typescript": "~5.9.3",
     "wrangler": "^4.45.0"
   }

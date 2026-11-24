@@ -85,7 +85,7 @@ export function SettingsPage() {
     } catch (err) {
       setProbeOk(false)
       setProbeMessage(
-        `Could not reach ${base}. Start uvicorn on the Windows PC, allow local network access if the browser prompts, and confirm the URL. ${(err as Error).message}`,
+        `Could not reach ${base}. Start OpenSnap.exe (or uvicorn) on the Windows PC, allow local network access if the browser prompts, and confirm the URL. ${(err as Error).message}`,
       )
     }
   }
@@ -98,11 +98,13 @@ export function SettingsPage() {
           <h2 className="text-lg font-semibold">Local processing connection</h2>
           <p className="text-xs text-[var(--color-muted)]">
             Cloudflare may host only the OpenSnap UI shell. Video, snapshots, patient data, and PDFs
-            always stay on the local Windows recording service. Do not point these URLs at Cloudflare.
+            always stay on the local Windows recording service (OpenSnap.exe or uvicorn). Do not point
+            these URLs at Cloudflare. The Windows EXE packaging path is unchanged and preferred for
+            day-to-day clinical use.
           </p>
           <Field
             label="Local recording service URL"
-            hint="Used by this browser for all API and media calls. Example: http://127.0.0.1:8000 or http://192.168.1.20:8000"
+            hint="Used by this browser for all API and media calls. Example: http://127.0.0.1:8000 (OpenSnap.exe) or http://192.168.1.20:8000"
           >
             <Input
               value={serviceUrlInput}
